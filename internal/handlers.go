@@ -53,7 +53,14 @@ func (s *Server) GetIconLocalHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		remoteURL := baseRemoteUrl + iconPath
+		// IconsCDN[iconCdnKey] 是 CDN 的基础前缀，例如：
+		//   dashboard-icons: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/
+		//   selfhst-icons:   https://cdn.jsdelivr.net/gh/selfhst/icons/
+		// 本地访问路径形如：{cdn-key}/webp/openobserve.webp
+		// 所以拼远程 URL 时需要去掉本地路径中的 {cdn-key}/ 前缀。
+		relPath := strings.TrimPrefix(iconPath, iconCdnKey+"/")
+		remoteURL := baseRemoteUrl + relPath
+
 		log.Printf("Icon cache miss: %s, downloading from: %s", iconPath, remoteURL)
 
 		// 下载文件
@@ -260,4 +267,3 @@ func (s *Server) getPageRawContent(w http.ResponseWriter, r *http.Request, path 
 		"path":    pageConfig.Pagefile,
 	})
 }
-

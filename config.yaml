@@ -1,4 +1,4 @@
-# Home Dashboard 后端配置
+# HomepageX 后端配置
 
 server:
   port: "8090"
@@ -11,11 +11,23 @@ auths:
   - user1:user123@/tools:rw,/*:ro # 给 user1 分配 /tools 路径的读写权限，其他路径只读
   - "@*,!/inner*" # 访客：所有路径可访问，无需认证，除了 /inner 开头的路径
 
-# see https://www.jsdelivr.com/
+# 图标缓存配置
+# 页面使用: icons-local/{cdn-key}/{type:png|webp|svg}/{icon-name} 格式访问图标
+# eg: icons-local/dashboard-icons/png/gitlab.png
 icons_cdn:
-  # 图标 CDN 配置 see https://dashboardicons.com/ 搜索
-  dashboard-icons: "https://cdn.jsdelivr.net/gh/homarr-labs/"
+  # 图标 CDN 配置：key 为本地使用前缀，value 为远程 CDN 基础路径
+  # 本地：icons-local/{cdn-key}/png/gitlab.png
+  # 远程：{IconsCDN[cdn-key]} + "png/gitlab.png"
+  #
+  # dashboard-icons 示例（来自 https://dashboardicons.com/）
+  # 本地：icons-local/dashboard-icons/png/gitlab.png
+  # 远程：https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/png/gitlab.png
+  dashboard-icons: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/"
 
+  # selfhst-icons 示例（来自 https://selfh.st/icons/）
+  # 本地：icons-local/selfhst-icons/webp/openobserve.webp
+  # 远程：https://cdn.jsdelivr.net/gh/selfhst/icons/webp/openobserve.webp
+  selfhst-icons: "https://cdn.jsdelivr.net/gh/selfhst/icons/"
 
 # 页面配置文件存放目录
 pages_dir: "./pages"
@@ -41,4 +53,3 @@ page_navs:
   - name: "Another"
     icon: "fas fa-star"
     url: "/another"
-
