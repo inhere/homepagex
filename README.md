@@ -180,6 +180,11 @@ pnpm run build
 - 使用 `fas fa-icon-name` 格式
 - 完整图标列表: https://fontawesome.com/icons
 
+### Dashboard ICONS
+
+- https://github.com/homarr-labs/dashboard-icons
+- https://selfh.st/icons/
+
 ## 许可证
 
 MIT

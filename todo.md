@@ -10,9 +10,9 @@
   - 缓存目录结构：`{frontend_dir}/icons-local/dashboard-icons/png/`
   - eg: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png -> `{frontend_dir}/icons-local/dashboard-icons/png/plex.png`
 
-- [ ] 增强：支持在线编辑配置文件，如果有权限，页面显示编辑按钮。打开弹窗，允许用户编辑yaml配置内容。
+- [x] 增强：支持在线编辑配置文件，如果有权限，页面显示编辑按钮。打开弹窗，允许用户编辑yaml配置内容。
   - 编辑后，页面会自动刷新，显示最新配置
-  - 新增 `editable` 字段，用于配置是否显示编辑按钮
+- [x] basic 认证改为了简单的普通登录处理
 
 - [ ] 增强：支持简单的状态检测，用于判断服务是否可用。仅存储在内存中，不持久化。
   - 新增 `connectivity` 字段，用于配置状态检测

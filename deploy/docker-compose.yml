@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  home-dashboard:
+  homepagex:
     build: .
-    container_name: home-dashboard
+    container_name: homepagex
     ports:
       - "8080:8080"
     volumes:
