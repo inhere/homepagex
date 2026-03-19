@@ -2,6 +2,16 @@
   export let item = { name: '', url: '', logo: '', subtitle: '', tags: [] };
   export let style = 'cards';
 
+  function getInitials(name) {
+    if (!name) return '';
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word[0].toUpperCase())
+      .join('')
+      .slice(0, 3);
+  }
+
   function handleClick() {
     if (item.target === '_blank') {
       window.open(item.url, '_blank');
@@ -29,7 +39,11 @@
         <img src={item.logo} alt={item.name} />
       {:else}
         <div class="logo-fallback">
-          <i class="fas fa-link"></i>
+          {#if item.name}
+            {getInitials(item.name)}
+          {:else}
+            <i class="fas fa-link"></i>
+          {/if}
         </div>
       {/if}
     </button>
@@ -64,7 +78,11 @@
         <img src={item.logo} alt={item.name} />
       {:else}
         <div class="logo-fallback">
-          <i class="fas fa-link"></i>
+          {#if item.name}
+            {getInitials(item.name)}
+          {:else}
+            <i class="fas fa-link"></i>
+          {/if}
         </div>
       {/if}
     </button>

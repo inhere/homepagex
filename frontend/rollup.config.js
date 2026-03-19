@@ -6,6 +6,7 @@ import terser from '@rollup/plugin-terser';
 import css from 'rollup-plugin-css-only';
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -55,7 +56,7 @@ function serve() {
 	return {
 		writeBundle() {
 			if (server) return;
-			server = require('child_process').spawn('npm', ['run', 'start', '--', '--dev'], {
+			server = spawn('npm', ['run', 'start', '--', '--dev'], {
 				stdio: ['ignore', 'inherit', 'inherit'],
 				shell: true
 			});
@@ -99,9 +100,9 @@ export default {
 		// Copy public directory to build
 		copyPublic(),
 
-		// In dev mode, call `npm run start` once
-		// the bundle has been generated
-		!production && serve(),
+		// 开发模式下不再自动启动本地静态服务器，
+		// 由 Go 后端统一提供静态文件
+		// !production && serve(),
 
 		// Watch the `public` directory and refresh the
 		// browser on changes when not in production

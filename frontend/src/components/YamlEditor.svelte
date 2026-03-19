@@ -110,11 +110,9 @@
   }
 </script>
 
-<button
-  type="button"
+<div
   class="modal-overlay"
   on:click={handleOverlayClick}
-  aria-label="关闭编辑弹窗"
 >
   <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-header">
@@ -180,7 +178,7 @@
       </button>
     </div>
   </div>
-</button>
+</div>
 
 <style>
   .modal-overlay {
@@ -190,7 +188,11 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: radial-gradient(
+      circle at top,
+      var(--theme-secondary-rgba, rgba(255, 255, 255, 0.05)),
+      rgba(0, 0, 0, 0.75)
+    );
     backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
@@ -207,7 +209,11 @@
   }
 
   .modal-container {
-    background: linear-gradient(135deg, rgba(30, 30, 50, 0.98), rgba(20, 20, 40, 0.98));
+    background: linear-gradient(
+      135deg,
+      var(--theme-primary-rgba, rgba(20, 20, 40, 0.98)),
+      var(--theme-secondary-rgba, rgba(10, 10, 25, 0.98))
+    );
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
     width: 100%;

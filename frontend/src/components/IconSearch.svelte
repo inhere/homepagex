@@ -9,43 +9,221 @@
   let loading = true;
   let error = null;
 
-  const ICON_CDN = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@master';
-  const METADATA_URL = `${ICON_CDN}/metadata.json`;
+  let activeSourceId = 'dashboard';
+  let sourceCache = {};
 
-  onMount(async () => {
+  const ICON_SOURCES = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard Icons',
+      metaUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@master/metadata.json',
+      type: 'dashboard'
+    },
+    {
+      id: 'selfhst',
+      label: 'selfh.st Icons',
+      metaUrl: 'https://cdn.jsdelivr.net/gh/selfhst/icons@main/index.json',
+      type: 'selfhst'
+    }
+  ];
+
+  function getActiveSource() {
+    return ICON_SOURCES.find((s) => s.id === activeSourceId) || ICON_SOURCES[0];
+  }
+
+  function buildIconUrl(source, icon) {
+    if (source.type === 'dashboard') {
+      return `https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@master/png/${icon.name}.png`;
+    }
+
+    // selfhst/icons - 使用 reference 作为文件名
+    if (source.type === 'selfhst') {
+      return `https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/${icon.name}.png`;
+    }
+
+    return icon.url || '';
+  }
+
+  function normalizeMetadata(source, metadata) {
+    const icons = [];
+
+    // dashboard-icons: metadata 是对象 { name: { aliases: [...] } }
+    if (source.type === 'dashboard' && metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+      Object.entries(metadata).forEach(([name, data]) => {
+        icons.push({
+          name,
+          displayName: name,
+          aliases: (data && data.aliases) || []
+        });
+      });
+      return icons;
+    }
+
+    // selfhst/icons: index.json 可能是数组或对象，这里做兼容处理
+    if (source.type === 'selfhst') {
+      // 某些版本可能包在 Icons 字段里
+      if (metadata && Array.isArray(metadata.Icons)) {
+        metadata = metadata.Icons;
+      }
+
+      // 数组形式
+      if (Array.isArray(metadata)) {
+        metadata.forEach((item) => {
+          if (!item) return;
+          const ref =
+            item.Reference ||
+            item.reference ||
+            item.Name ||
+            item.name ||
+            item.slug;
+          if (!ref) return;
+          const aliases = [];
+          const rawAliases =
+            item.aliases ||
+            item.Aliases ||
+            item.tags ||
+            item.Tags ||
+            item.keywords ||
+            item.Keywords ||
+            item.Category ||
+            item.category;
+
+          if (Array.isArray(rawAliases)) {
+            aliases.push(...rawAliases);
+          } else if (typeof rawAliases === 'string' && rawAliases.trim()) {
+            rawAliases
+              .split(/[,\s]+/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .forEach((s) => aliases.push(s));
+          }
+
+          const displayName =
+            item.Name ||
+            item.name ||
+            item.title ||
+            item.label ||
+            item.Reference ||
+            item.reference ||
+            ref;
+          icons.push({
+            name: ref,
+            displayName,
+            aliases
+          });
+        });
+        return icons;
+      }
+
+      // 对象形式 { immich: { ... }, ... }
+      if (metadata && typeof metadata === 'object') {
+        Object.entries(metadata).forEach(([ref, item]) => {
+          if (!item) return;
+          const aliases = [];
+          const rawAliases =
+            item.aliases ||
+            item.Aliases ||
+            item.tags ||
+            item.Tags ||
+            item.keywords ||
+            item.Keywords ||
+            item.Category ||
+            item.category;
+
+          if (Array.isArray(rawAliases)) {
+            aliases.push(...rawAliases);
+          } else if (typeof rawAliases === 'string' && rawAliases.trim()) {
+            rawAliases
+              .split(/[,\s]+/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .forEach((s) => aliases.push(s));
+          }
+
+          const displayName =
+            item.Name ||
+            item.name ||
+            item.title ||
+            item.label ||
+            item.Reference ||
+            item.reference ||
+            ref;
+          icons.push({
+            name: ref,
+            displayName,
+            aliases
+          });
+        });
+        return icons;
+      }
+    }
+
+    return icons;
+  }
+
+  async function loadIconsForSource(source) {
+    loading = true;
+    error = null;
+
     try {
-      const response = await fetch(METADATA_URL);
-      if (!response.ok) throw new Error('Failed to load icons');
-      
-      const metadata = await response.json();
-      icons = Object.entries(metadata).map(([name, data]) => ({
-        name,
-        url: `${ICON_CDN}/png/${name}.png`,
-        aliases: data.aliases || []
-      }));
-      
+      if (sourceCache[source.id]) {
+        icons = sourceCache[source.id];
+      } else {
+        const response = await fetch(source.metaUrl);
+        if (!response.ok) throw new Error('Failed to load icons');
+
+        const metadata = await response.json();
+        const normalized = normalizeMetadata(source, metadata).map((icon) => ({
+          ...icon,
+          url: buildIconUrl(source, icon)
+        }));
+
+        sourceCache = {
+          ...sourceCache,
+          [source.id]: normalized
+        };
+
+        icons = normalized;
+      }
+
       filteredIcons = icons.slice(0, 20);
     } catch (err) {
       error = err.message;
     } finally {
       loading = false;
     }
+  }
+
+  onMount(async () => {
+    const source = getActiveSource();
+    await loadIconsForSource(source);
   });
+
+  async function handleSourceChange(id) {
+    if (id === activeSourceId) return;
+    activeSourceId = id;
+    searchQuery = '';
+    const source = getActiveSource();
+    await loadIconsForSource(source);
+  }
 
   function handleSearch(event) {
     searchQuery = event.target.value.toLowerCase();
-    
+
     if (!searchQuery) {
       filteredIcons = icons.slice(0, 20);
       return;
     }
 
-    const results = icons.filter(icon => {
-      const nameMatch = icon.name.toLowerCase().includes(searchQuery);
-      const aliasMatch = icon.aliases.some(alias => 
+    const results = icons.filter((icon) => {
+      const nameMatch = (icon.name || '').toLowerCase().includes(searchQuery);
+      const displayNameMatch = (icon.displayName || '').toLowerCase().includes(
+        searchQuery
+      );
+      const aliasMatch = (icon.aliases || []).some((alias) =>
         alias.toLowerCase().includes(searchQuery)
       );
-      return nameMatch || aliasMatch;
+      return nameMatch || displayNameMatch || aliasMatch;
     });
 
     filteredIcons = results.slice(0, 50);
@@ -67,6 +245,19 @@
         value={searchQuery}
         on:input={handleSearch}
       />
+    </div>
+
+    <div class="source-toggle" aria-label="图标来源切换">
+      {#each ICON_SOURCES as source}
+        <button
+          type="button"
+          class="source-btn"
+          class:active={source.id === activeSourceId}
+          on:click={() => handleSourceChange(source.id)}
+        >
+          {source.label}
+        </button>
+      {/each}
     </div>
   </div>
 
@@ -113,9 +304,13 @@
 
   .search-header {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
   .search-input-wrapper {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -124,6 +319,35 @@
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 8px;
     transition: all 0.3s ease;
+  }
+
+  .source-toggle {
+    display: inline-flex;
+    padding: 2px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .source-btn {
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.75rem;
+    padding: 6px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .source-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .source-btn.active {
+    background: var(--theme-primary, #4a9eff);
+    color: #ffffff;
   }
 
   .search-input-wrapper:focus-within {
