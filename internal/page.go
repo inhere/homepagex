@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/goccy/go-yaml"
 	"github.com/gookit/goutil/fsutil"
@@ -50,12 +51,14 @@ type Item struct {
 
 // PageDataManager 页面数据管理器
 type PageDataManager struct {
-	Debug   bool
-	PageDir string
+	Debug    bool
+	PageDir  string
 	Defaults PageDefaults
 	// 默认导航项
 	Navs []NavItem
 	// 页面配置缓存 key is page name TODO 支持缓存过期
+	// mu 保护 cacheMap：HTTP handler 天然并发访问
+	mu       sync.RWMutex
 	cacheMap map[string]*PageConfig
 }
 
@@ -64,9 +67,8 @@ var PageDataMgr *PageDataManager
 
 // GetPageConfig 获取页面配置数据
 func (m *PageDataManager) GetPageConfig(name string, refresh bool) (*PageConfig, error) {
-	if m.cacheMap == nil {
-		m.cacheMap = make(map[string]*PageConfig)
-	}
+	// 缓存 key 必须与 ClearCache 使用的 key 一致，否则保存后无法失效旧缓存
+	key := m.getFilename(name)
 
 	// feat: refresh=true 时跳过缓存，重新加载
 	if !refresh {
@@ -74,15 +76,28 @@ func (m *PageDataManager) GetPageConfig(name string, refresh bool) (*PageConfig,
 	}
 
 	// 从缓存中获取
-	if page, ok := m.cacheMap[name]; ok && !refresh {
-		return page, nil
+	if !refresh {
+		m.mu.RLock()
+		page, ok := m.cacheMap[key]
+		m.mu.RUnlock()
+		if ok {
+			return page, nil
+		}
 	}
 
 	page, err := m.LoadPageConfig(name)
-	if err == nil {
-		m.cacheMap[name] = page
+	if err != nil {
+		return nil, err
 	}
-	return page, err
+
+	m.mu.Lock()
+	if m.cacheMap == nil {
+		m.cacheMap = make(map[string]*PageConfig)
+	}
+	m.cacheMap[key] = page
+	m.mu.Unlock()
+
+	return page, nil
 }
 
 const (
@@ -105,17 +120,20 @@ func (m *PageDataManager) getFilename(name string) string {
 // LoadPageConfig 加载页面配置
 func (m *PageDataManager) LoadPageConfig(name string) (*PageConfig, error) {
 	filename := m.getFilename(name)
-	pagefile := filepath.Join(m.PageDir, filename + ".yaml")
 
-	var err error
+	pagefile, err := resolveWithinDir(m.PageDir, filepath.Join(m.PageDir, filename+".yaml"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid page name %q: %w", name, err)
+	}
+
 	var data []byte
 
 	// debug mode 下，优先使用 {name}.local.yaml
 	if m.Debug {
-		dotLocalFile := filepath.Join(m.PageDir, filename+".local.yaml")
-		if fsutil.IsFile(dotLocalFile) {
+		dotLocalFile, lerr := resolveWithinDir(m.PageDir, filepath.Join(m.PageDir, filename+".local.yaml"))
+		if lerr == nil && fsutil.IsFile(dotLocalFile) {
 			pagefile = dotLocalFile
-			data, err = os.ReadFile(dotLocalFile)
+			data, _ = os.ReadFile(dotLocalFile)
 		}
 	}
 
@@ -156,11 +174,9 @@ func (m *PageDataManager) LoadPageConfig(name string) (*PageConfig, error) {
 
 // ClearCache 清除指定页面的缓存
 func (m *PageDataManager) ClearCache(name string) {
-	if m.cacheMap == nil {
-		return
-	}
-	
 	filename := m.getFilename(name)
-	delete(m.cacheMap, filename)
-}
 
+	m.mu.Lock()
+	delete(m.cacheMap, filename)
+	m.mu.Unlock()
+}

@@ -5,11 +5,21 @@ server:
   mode: debug # debug 或 release
 
 # auths 认证配置
-# 规则: user:pass@path1:perm,path2:perm2
+# 规则格式: user:pass@path1:perm,path2:perm2
+#   - 路径写法: /a 子树匹配(/a 及 /a/**)；/a* 前缀匹配(也会命中 /ab)；* 或 /* 匹配全部
+#   - 权限后缀: rw 读写 / ro 只读(省略时默认 ro) / no 拒绝
+#   - 用户名留空(@...)即匿名规则，构成「匿名基线」，也就是未登录用户能做什么
+#   - !path 表示「认证墙」：匿名不可访问，登录后按各自权限访问（对已登录用户不生效）
+#   - 已登录用户 = 自身规则优先，未命中则回退匿名基线，所以不必给每个用户补 /*:ro 兜底
+#   - 写操作必须已登录且具备 rw
 auths:
-  - admin:admin123@*:rw # 给 admin 分配所有路径的读写权限
-  - user1:user123@/tools:rw,/*:ro # 给 user1 分配 /tools 路径的读写权限，其他路径只读
-  - "@*,!/inner*" # 访客：所有路径可访问，无需认证，除了 /inner 开头的路径
+  - admin:admin123@*:rw # admin：全站读写
+  - user1:user123@/tools:rw # user1：额外获得 /tools 的读写，其余读权限来自下面的匿名基线
+  - "@*,!/inner*" # 匿名基线：全站只读，但 /inner* 需要登录后才能访问
+
+# deny 硬拒绝：任何人都不能访问（admin 也不例外），用于临时下线页面等
+# 例: deny: ["/secret", "/inner-tools"]
+deny: []
 
 # 图标缓存配置
 # 页面使用: icons-local/{cdn-key}/{type:png|webp|svg}/{icon-name} 格式访问图标

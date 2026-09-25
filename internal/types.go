@@ -13,4 +13,8 @@ type PageDataResponse struct {
 	Navs []NavItem `json:"navs"`
 	// 当前登录用户信息（游客访问时为 null）
 	UserInfo *LoginInfo `json:"user_info,omitempty"`
+	// CanWrite 当前身份对当前页面是否可写（前端据此显示/隐藏编辑入口，不再自己算）
+	CanWrite bool `json:"can_write"`
+	// IconCDNKeys 已配置的图标 CDN key，前端据此拼 icons-local/{key}/... 使用本地缓存
+	IconCDNKeys []string `json:"icon_cdn_keys,omitempty"`
 }

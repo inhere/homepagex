@@ -7,5 +7,6 @@ func Init(cfg *Config) {
 		PageDir:  cfg.PagesDir,
 		Defaults: cfg.PageDefaults,
 		Navs:     cfg.PageNavs,
+		cacheMap: make(map[string]*PageConfig),
 	}
 }

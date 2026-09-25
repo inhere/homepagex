@@ -3,7 +3,6 @@ package internal
 import (
 	"testing"
 
-	"github.com/gookit/goutil/dump"
 	"github.com/gookit/goutil/testutil/assert"
 )
 
@@ -12,7 +11,7 @@ func TestParseAuths(t *testing.T) {
 		name    string
 		auths   []string
 		wantLen int
-		checkFn func(*testing.T, map[string]*AuthConfig)
+		checkFn func(t *testing.T, c *Config)
 	}{
 		{
 			name:    "空配置",
@@ -23,129 +22,105 @@ func TestParseAuths(t *testing.T) {
 			name:    "公开访问 @*",
 			auths:   []string{"@*"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				var auth *AuthConfig
-				for _, a := range auths {
-					auth = a
-					break
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths[""]
+				if auth == nil {
+					t.Fatal("期望存在匿名配置")
 				}
-				if auth.Username != "" {
-					t.Errorf("期望用户名为空，实际为 %q", auth.Username)
-				}
-				if auth.Password != "" {
-					t.Errorf("期望密码为空，实际为 %q", auth.Password)
-				}
-				if len(auth.PathPerms) != 1 || auth.PathPerms[0] != "/*:ro" {
-					t.Errorf("期望路径权限为 [/*:ro]，实际为 %v", auth.PathPerms)
-				}
+				assert.Eq(t, "", auth.Username)
+				assert.Eq(t, "", auth.Password)
+				assert.Eq(t, 1, len(auth.Rules))
+				assert.Eq(t, PermRO, auth.Rules[0].Perm)
+				assert.Eq(t, ruleAll, auth.Rules[0].Kind)
 			},
 		},
 		{
 			name:    "带用户名密码的完整配置",
 			auths:   []string{"admin:admin123@*:rw"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				auth, exists := auths["admin"]
-				if !exists {
-					t.Errorf("期望找到用户 admin")
-					return
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths["admin"]
+				if auth == nil {
+					t.Fatal("期望找到用户 admin")
 				}
-				if auth.Username != "admin" {
-					t.Errorf("期望用户名 admin，实际为 %q", auth.Username)
-				}
-				if auth.Password != "admin123" {
-					t.Errorf("期望密码 admin123，实际为 %q", auth.Password)
-				}
-				if len(auth.PathPerms) != 1 || auth.PathPerms[0] != "*:rw" {
-					t.Errorf("期望路径权限为 [*:rw]，实际为 %v", auth.PathPerms)
-				}
+				assert.Eq(t, "admin", auth.Username)
+				assert.Eq(t, "admin123", auth.Password)
+				assert.Eq(t, 1, len(auth.Rules))
+				assert.Eq(t, PermRW, auth.Rules[0].Perm)
+				assert.Eq(t, "/*:rw", auth.Rules[0].String())
 			},
 		},
 		{
 			name:    "多路径配置",
 			auths:   []string{"user:pass@/api:rw,/static:ro"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				auth, exists := auths["user"]
-				if !exists {
-					t.Errorf("期望找到用户 user")
-					return
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths["user"]
+				if auth == nil {
+					t.Fatal("期望找到用户 user")
 				}
-				if auth.Username != "user" {
-					t.Errorf("期望用户名 user，实际为 %q", auth.Username)
-				}
-				if auth.Password != "pass" {
-					t.Errorf("期望密码 pass，实际为 %q", auth.Password)
-				}
-				if len(auth.PathPerms) != 2 {
-					t.Errorf("期望 2 个路径权限，实际为 %d", len(auth.PathPerms))
-				}
+				assert.Eq(t, "pass", auth.Password)
+				assert.Eq(t, 2, len(auth.Rules))
+				assert.Eq(t, "/api:rw", auth.Rules[0].String())
+				assert.Eq(t, "/static:ro", auth.Rules[1].String())
 			},
 		},
 		{
 			name:    "匿名用户多路径",
 			auths:   []string{"@/public:ro,/api"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				var auth *AuthConfig
-				for _, a := range auths {
-					auth = a
-					break
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths[""]
+				if auth == nil {
+					t.Fatal("期望存在匿名配置")
 				}
-				if auth.Username != "" {
-					t.Errorf("期望用户名为空，实际为 %q", auth.Username)
-				}
-				if len(auth.PathPerms) != 2 {
-					t.Errorf("期望 2 个路径权限，实际为 %d", len(auth.PathPerms))
-				}
+				assert.Eq(t, "", auth.Username)
+				assert.Eq(t, 2, len(auth.Rules))
+				// 省略权限时默认 ro
+				assert.Eq(t, "/api:ro", auth.Rules[1].String())
 			},
 		},
 		{
-			name:    "排除路径配置",
+			name:    "排除路径进入认证墙而不是用户规则",
 			auths:   []string{"@*,!/inner"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				var auth *AuthConfig
-				for _, a := range auths {
-					auth = a
-					break
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths[""]
+				if auth == nil {
+					t.Fatal("期望存在匿名配置")
 				}
-				if len(auth.PathPerms) != 2 {
-					t.Errorf("期望 2 个路径权限，实际为 %d", len(auth.PathPerms))
-				}
+				assert.Eq(t, 1, len(auth.Rules))
+				assert.Eq(t, 1, len(c.guestDenyRules))
+				assert.Eq(t, PermNO, c.guestDenyRules[0].Perm)
+				// 匿名基线只含允许规则
+				assert.Eq(t, 1, len(c.guestRules))
 			},
 		},
 		{
 			name:    "仅用户名无密码",
 			auths:   []string{"admin@*:rw"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				auth, exists := auths["admin"]
-				if !exists {
-					t.Errorf("期望找到用户 admin")
-					return
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths["admin"]
+				if auth == nil {
+					t.Fatal("期望找到用户 admin")
 				}
-				if auth.Username != "admin" {
-					t.Errorf("期望用户名 admin，实际为 %q", auth.Username)
-				}
-				if auth.Password != "" {
-					t.Errorf("期望密码为空，实际为 %q", auth.Password)
-				}
+				assert.Eq(t, "admin", auth.Username)
+				assert.Eq(t, "", auth.Password)
 			},
 		},
 		{
 			name:    "仅通配符路径",
 			auths:   []string{"user:pass@*"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				auth, exists := auths["user"]
-				if !exists {
-					t.Errorf("期望找到用户 user")
-					return
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths["user"]
+				if auth == nil {
+					t.Fatal("期望找到用户 user")
 				}
-				if len(auth.PathPerms) != 1 || auth.PathPerms[0] != "/*:ro" {
-					t.Errorf("期望路径权限为 [/*:ro]，实际为 %v", auth.PathPerms)
-				}
+				assert.Eq(t, 1, len(auth.Rules))
+				assert.Eq(t, PermRO, auth.Rules[0].Perm)
+				assert.Eq(t, ruleAll, auth.Rules[0].Kind)
 			},
 		},
 		{
@@ -159,183 +134,142 @@ func TestParseAuths(t *testing.T) {
 			wantLen: 1,
 		},
 		{
-			name:    "/inner 需要认证",
+			name:    "! 认证墙只对匿名生效",
 			auths:   []string{"@*,!/inner*"},
 			wantLen: 1,
-			checkFn: func(t *testing.T, auths map[string]*AuthConfig) {
-				var auth *AuthConfig
-				for _, a := range auths {
-					auth = a
-					break
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths[""]
+				if auth == nil {
+					t.Fatal("期望存在匿名配置")
 				}
-				if auth.Username != "" {
-					t.Errorf("期望用户名为空，实际为 %q", auth.Username)
+				assert.Eq(t, "", auth.Username)
+				// 认证墙不进用户规则
+				assert.Eq(t, 1, len(auth.Rules))
+				assert.Eq(t, 1, len(c.guestDenyRules))
+				// /inner* 归一化为前缀匹配 /inner
+				assert.Eq(t, "/inner", c.guestDenyRules[0].Pattern)
+				assert.Eq(t, rulePrefix, c.guestDenyRules[0].Kind)
+			},
+		},
+		{
+			name:    "显式 :no 不再被静默降级",
+			auths:   []string{"user:pass@/secret:no,/tools:rw"},
+			wantLen: 1,
+			checkFn: func(t *testing.T, c *Config) {
+				auth := c.parsedAuths["user"]
+				if auth == nil {
+					t.Fatal("期望找到用户 user")
 				}
-				if auth.Password != "" {
-					t.Errorf("期望密码为空，实际为 %q", auth.Password)
-				}
-				if len(auth.PathPerms) != 2 || auth.PathPerms[0] != "/inner*:no" || auth.PathPerms[1] != "/*:ro" {
-					t.Errorf("期望路径权限为 [/inner*:no /*:ro]，实际为 %v", auth.PathPerms)
-				}
+				assert.Eq(t, PermNO, auth.Rules[0].Perm)
+				assert.Eq(t, "/secret", auth.Rules[0].Pattern)
+			},
+		},
+		{
+			name:    "顶层 deny 解析为硬拒绝规则",
+			auths:   []string{"admin:pass@*:rw"},
+			wantLen: 1,
+			checkFn: func(t *testing.T, c *Config) {
+				assert.Eq(t, 0, len(c.hardDenyRules))
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &Config{
-				Auths: tt.auths,
-			}
-			err := c.parseAuths()
-			if err != nil {
-				t.Fatalf("parseAuths 失败: %v", err)
-			}
+			c := &Config{Auths: tt.auths}
+			assert.NoErr(t, c.parseAuths())
 
-			if len(c.parsedAuths) != tt.wantLen {
-				t.Errorf("期望解析出 %d 个认证配置，实际为 %d", tt.wantLen, len(c.parsedAuths))
-			}
-
-			if tt.checkFn != nil && len(c.parsedAuths) > 0 {
-				tt.checkFn(t, c.parsedAuths)
+			assert.Eq(t, tt.wantLen, len(c.parsedAuths))
+			if tt.checkFn != nil {
+				tt.checkFn(t, c)
 			}
 		})
 	}
 }
 
-func TestMatchAuthConfig(t *testing.T) {
+func TestParseDeny(t *testing.T) {
+	c := &Config{
+		Auths: []string{"admin:pass@*:rw"},
+		Deny:  []string{"/inner-tools", "/secret/**"},
+	}
+	assert.NoErr(t, c.parseAuths())
+	assert.Eq(t, 2, len(c.hardDenyRules))
+	assert.Eq(t, "/inner-tools", c.hardDenyRules[0].Pattern)
+	assert.Eq(t, "/secret", c.hardDenyRules[1].Pattern)
+}
+
+// 配置写错时必须启动失败，而不是静默降级成另一种语义
+func TestParseAuthsError(t *testing.T) {
+	t.Run("未知权限后缀", func(t *testing.T) {
+		c := &Config{Auths: []string{"user:pass@/a:readonly"}}
+		assert.Err(t, c.parseAuths())
+	})
+
+	t.Run("缺少 @ 分隔符", func(t *testing.T) {
+		c := &Config{Auths: []string{"user:pass"}}
+		assert.Err(t, c.parseAuths())
+	})
+
+	t.Run("deny 里的未知权限后缀", func(t *testing.T) {
+		c := &Config{Auths: []string{"@*"}, Deny: []string{"/a:xx"}}
+		assert.Err(t, c.parseAuths())
+	})
+}
+
+func TestNormalizePattern(t *testing.T) {
 	tests := []struct {
-		name      string
-		auths     []string
-		reqPath   string
-		wantMatch bool
-		wantUser  string
-		wantPerm  string
+		raw      string
+		wantPat  string
+		wantKind ruleKind
 	}{
-		{
-			name:      "公开路径匹配",
-			auths:     []string{"@*"},
-			reqPath:   "/anything",
-			wantMatch: true,
-			wantUser:  "",
-			wantPerm:  "ro",
-		},
-		{
-			name:      "通配符路径匹配",
-			auths:     []string{"admin:pass@*:rw"},
-			reqPath:   "/api/test",
-			wantMatch: true,
-			wantUser:  "admin",
-			wantPerm:  "rw",
-		},
-		{
-			name:      "精确路径匹配",
-			auths:     []string{"user:pass@/api:rw"},
-			reqPath:   "/api",
-			wantMatch: true,
-			wantUser:  "user",
-			wantPerm:  "rw",
-		},
-		{
-			name:      "子路径匹配",
-			auths:     []string{"user:pass@/api/*"},
-			reqPath:   "/api/users/123",
-			wantMatch: true,
-			wantUser:  "user",
-			wantPerm:  "ro",
-		},
-		{
-			name:      "排除路径匹配",
-			auths:     []string{"@*,!/inner"},
-			reqPath:   "/inner",
-			wantMatch: true,
-			wantPerm:  "no",
-		},
-		{
-			name:      "排除路径匹配2",
-			auths:     []string{"@*,!/inner/*"},
-			reqPath:   "/inner/tools",
-			wantMatch: true,
-			wantPerm:  "no",
-		},
-		{
-			name:      "多用户配置-第一个匹配",
-			auths:     []string{"admin:admin123@*:rw", "user1:user123@/tools:rw"},
-			reqPath:   "/home",
-			wantMatch: true,
-			wantUser:  "admin",
-			wantPerm:  "rw",
-		},
-		{
-			name:      "多用户配置-匹配到第一个",
-			auths:     []string{"admin:admin123@*:rw", "user1:user123@/tools:rw"},
-			reqPath:   "/tools",
-			wantMatch: true,
-			wantUser:  "admin",
-			wantPerm:  "rw",
-		},
-		{
-			name:      "无配置-不匹配",
-			auths:     []string{},
-			reqPath:   "/api",
-			wantMatch: false,
-		},
-		{
-			name:      "无匹配路径",
-			auths:     []string{"admin:pass@/admin/*"},
-			reqPath:   "/public",
-			wantMatch: false,
-		},
-		{
-			name:      "多路径配置-第一个匹配",
-			auths:     []string{"user:pass@/api:rw,/static:ro"},
-			reqPath:   "/api",
-			wantMatch: true,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "多路径配置-第二个匹配",
-			auths:     []string{"user:pass@/api:rw,/static:ro"},
-			reqPath:   "/static",
-			wantMatch: true,
-			wantPerm:  "ro",
-		},
-		{
-			name:      "不带权限后缀默认为ro",
-			auths:     []string{"user:pass@/api"},
-			reqPath:   "/api",
-			wantMatch: true,
-			wantPerm:  "ro",
-		},
+		{"", "/", ruleAll},
+		{"*", "/", ruleAll},
+		{"/*", "/", ruleAll},
+		{"/**", "/", ruleAll},
+		{"/a", "/a", ruleSubtree},
+		{"a", "/a", ruleSubtree},
+		{"/a/**", "/a", ruleSubtree},
+		{"/a/*", "/a", rulePrefix},
+		{"/inner*", "/inner", rulePrefix},
+		{"inner*", "/inner", rulePrefix},
+		{"/a/b/c", "/a/b/c", ruleSubtree},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &Config{
-				Auths: tt.auths,
-			}
-			err := c.parseAuths()
-			if err != nil {
-				t.Fatalf("parseAuths 失败: %v", err)
-			}
+		t.Run(tt.raw, func(t *testing.T) {
+			pat, kind := normalizePattern(tt.raw)
+			assert.Eq(t, tt.wantPat, pat)
+			assert.Eq(t, tt.wantKind, kind)
+		})
+	}
+}
 
-			result := c.MatchAuthConfig(tt.reqPath)
+func TestPathRuleMatch(t *testing.T) {
+	tests := []struct {
+		rule    string
+		reqPath string
+		want    bool
+	}{
+		// 前缀匹配（兼容旧写法）：/inner* 会命中 /inner-tools
+		{"/inner*", "/inner", true},
+		{"/inner*", "/inner-tools", true},
+		{"/inner*", "/innerfoo", true},
+		{"/inner*", "/other", false},
+		// 子树匹配：/a 命中 /a 与 /a/x，但不命中 /ab
+		{"/a", "/a", true},
+		{"/a", "/a/x/y", true},
+		{"/a", "/ab", false},
+		// 全匹配
+		{"*", "/anything", true},
+		// 段内通配 /a/* 归一化为前缀 /a
+		{"/a/*", "/a/x", true},
+	}
 
-			if tt.wantMatch {
-				if result == nil {
-					t.Errorf("期望匹配到认证配置，实际为 nil")
-					return
-				}
-				if tt.wantUser != "" && result.Username != tt.wantUser {
-					t.Errorf("期望用户名 %q，实际为 %q", tt.wantUser, result.Username)
-				}
-				if result.Permission != tt.wantPerm {
-					t.Errorf("期望权限 %q，实际为 %q", tt.wantPerm, result.Permission)
-				}
-			} else {
-				if result != nil {
-					t.Errorf("期望不匹配，实际匹配到了 %v", result)
-				}
-			}
+	for _, tt := range tests {
+		t.Run(tt.rule+" → "+tt.reqPath, func(t *testing.T) {
+			rule, err := parseRuleToken(tt.rule)
+			assert.NoErr(t, err)
+			assert.Eq(t, tt.want, rule.match(tt.reqPath))
 		})
 	}
 }
@@ -344,123 +278,12 @@ func TestIsNeedAuth(t *testing.T) {
 	c := &Config{
 		Auths: []string{"admin:admin123@*:rw", "user1:user123@/tools:rw", "@*,!/inner*"},
 	}
-	err := c.parseAuths()
-	if err != nil {
-		t.Fatalf("parseAuths 失败: %v", err)
-	}
+	assert.NoErr(t, c.parseAuths())
 
-	dump.Config(dump.WithoutColor())
-	dump.Clear(c.parsedAuths)
-
+	// 匿名：公开页面不需要登录
 	assert.False(t, c.IsNeedAuth("/", false))
+	// 匿名：认证墙内需要登录
 	assert.True(t, c.IsNeedAuth("/inner-tools", false))
-}
-
-func TestPathMatch(t *testing.T) {
-	tests := []struct {
-		name      string
-		pattern   string
-		reqPath   string
-		wantMatch bool
-		wantPerm  string
-	}{
-		{
-			name:      "通配符匹配",
-			pattern:   "/*:ro",
-			reqPath:   "/anything",
-			wantMatch: true,
-			wantPerm:  "ro",
-		},
-		{
-			name:      "星号匹配",
-			pattern:   "*:rw",
-			reqPath:   "/test",
-			wantMatch: true,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "精确路径匹配",
-			pattern:   "/api:rw",
-			reqPath:   "/api",
-			wantMatch: true,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "子路径匹配",
-			pattern:   "/api:ro",
-			reqPath:   "/api/users",
-			wantMatch: true,
-			wantPerm:  "ro",
-		},
-		{
-			name:      "通配符前缀匹配",
-			pattern:   "/api/*:rw",
-			reqPath:   "/api/users/123",
-			wantMatch: true,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "通配符前缀不匹配",
-			pattern:   "/api/*:rw",
-			reqPath:   "/other",
-			wantMatch: false,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "精确路径不匹配",
-			pattern:   "/api:rw",
-			reqPath:   "/other",
-			wantMatch: false,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "无权限前缀",
-			pattern:   "/test",
-			reqPath:   "/test",
-			wantMatch: true,
-			wantPerm:  "ro",
-		},
-		{
-			name:      "无斜杠前缀自动添加",
-			pattern:   "api/*:rw",
-			reqPath:   "/api/users",
-			wantMatch: true,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "无斜杠请求路径自动添加",
-			pattern:   "/api/*:rw",
-			reqPath:   "api/users",
-			wantMatch: true,
-			wantPerm:  "rw",
-		},
-		{
-			name:      "no权限匹配",
-			pattern:   "/inner:no",
-			reqPath:   "/inner",
-			wantMatch: true,
-			wantPerm:  "no",
-		},
-		{
-			name:      "空pattern不匹配",
-			pattern:   ":ro",
-			reqPath:   "/test",
-			wantMatch: false,
-			wantPerm:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := &Config{}
-			matched, perm := c.pathMatch(tt.pattern, tt.reqPath)
-
-			if matched != tt.wantMatch {
-				t.Errorf("期望匹配 %v，实际为 %v", tt.wantMatch, matched)
-			}
-			if perm != tt.wantPerm {
-				t.Errorf("期望权限 %q，实际为 %q", tt.wantPerm, perm)
-			}
-		})
-	}
+	// 匿名：写操作一律需要登录（即使基线是只读）
+	assert.True(t, c.IsNeedAuth("/", true))
 }

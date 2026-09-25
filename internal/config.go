@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -44,27 +45,35 @@ type Config struct {
 	FrontendDir string       `yaml:"frontend_dir"`
 	// 图标 CDN 配置 see https://dashboardicons.com/ 搜索
 	IconsCDN map[string]string `yaml:"icons_cdn"`
-	// basic 认证配置
+	// basic 认证配置，格式：user:pass@path:perm,path2:perm2
 	Auths []string `yaml:"auths"`
+	// deny 硬拒绝路径：任何人都不能访问，用于临时下线页面等
+	Deny []string `yaml:"deny"`
 	// 页面默认配置
 	PageDefaults PageDefaults `yaml:"page_defaults"`
 	PageNavs     []NavItem    `yaml:"page_navs"`
-	// 解析后的认证配置，key为username
+
+	// 解析后的认证配置，key 为用户名（"" 表示匿名）
 	parsedAuths map[string]*AuthConfig
+	// guestRules 匿名基线中「允许」的规则（不含 `!` 认证墙）
+	guestRules []*pathRule
+	// guestDenyRules `!` 认证墙：仅对匿名生效，登录后即越过
+	guestDenyRules []*pathRule
+	// hardDenyRules 顶层 deny：对所有人硬拒绝
+	hardDenyRules []*pathRule
 }
 
-// AuthConfig 一个解析后的认证配置
+// AuthConfig 一个解析后的用户认证配置
 type AuthConfig struct {
-	Username  string
-	Password  string
-	PathPerms []string
-	// runtime 匹配后的权限：rw 读写, ro 只读, no 拒绝访问
-	Permission string
+	Username string
+	Password string
+	// Rules 归一化后的匹配规则
+	Rules []*pathRule
 }
 
 // IsValid 是否有效
 func (c *AuthConfig) IsValid() bool {
-	return c.Username != "" || c.Password != "" || len(c.PathPerms) > 0
+	return c.Username != "" || c.Password != "" || len(c.Rules) > 0
 }
 
 func newDefaultConfig() *Config {
@@ -106,231 +115,103 @@ func LoadConfig(path string) (*Config, error) {
 		config.FrontendDir = "./frontend/build"
 	}
 
-	err = config.parseAuths()
-	if err != nil {
+	if err = config.parseAuths(); err != nil {
 		return nil, fmt.Errorf("failed to parse auths: %w", err)
 	}
 	return config, nil
 }
 
-const (
-	// 读写权限
-	PermRW = "rw"
-	// 只读权限
-	PermRO = "ro"
-	// 拒绝访问权限
-	PermNO = "no"
-)
-
+// parseAuths 解析 auths / deny 配置，产出归一化规则。
+//
+// 规则文本：
+//   - 用户规则：user:pass@path:perm,path2:perm2（perm 省略时默认 ro）
+//   - 匿名规则：@path:perm，即用户名为空，构成所有人的匿名基线
+//   - `!path`：认证墙，仅对匿名生效（登录后即可见）
+//   - `:no`：显式拒绝
+//
+// 解析失败返回 error，由 LoadConfig 直接失败 —— 配置错误不应被静默降级成另一种语义。
 func (c *Config) parseAuths() error {
 	auths := make(map[string]*AuthConfig)
-	for _, auth := range c.Auths {
-		if auth == "" {
-			continue
-		}
 
-		ac := &AuthConfig{
-			PathPerms: []string{},
+	for _, auth := range c.Auths {
+		if strings.TrimSpace(auth) == "" {
+			continue
 		}
 
 		credStr, pathStr, ok := strings.Cut(auth, "@")
 		if !ok {
-			continue
+			return fmt.Errorf("invalid auth rule %q: expect format user:pass@path:perm", auth)
 		}
 
+		ac := &AuthConfig{}
 		if credStr != "" {
-			colonIdx := strings.Index(credStr, ":")
-			if colonIdx == -1 {
+			if idx := strings.Index(credStr, ":"); idx == -1 {
 				ac.Username = credStr
 			} else {
-				ac.Username = credStr[:colonIdx]
-				ac.Password = credStr[colonIdx+1:]
+				ac.Username = credStr[:idx]
+				ac.Password = credStr[idx+1:]
 			}
 		}
 
-		// 裸 * 表示所有路径只读，直接归一化
-		if pathStr == "" || pathStr == "*" {
-			ac.PathPerms = append(ac.PathPerms, "/*:ro")
-			auths[ac.Username] = ac
-			continue
-		}
-
-		var noPerms []string
-		var normalPerms []string
-
-		for p := range strings.SplitSeq(pathStr, ",") {
-			p = strings.TrimSpace(p)
-			if p == "" {
+		for token := range strings.SplitSeq(pathStr, ",") {
+			token = strings.TrimSpace(token)
+			if token == "" {
 				continue
 			}
 
-			if after, ok := strings.CutPrefix(p, "!"); ok {
-				// 排除路径：始终归一化为 /prefix:no，由 pathMatch 做通配匹配
-				if !strings.HasPrefix(after, "/") {
-					after = "/" + after
+			// `!path` 认证墙：只对匿名生效，所以单独存，不进入该用户的规则
+			if after, isDeny := strings.CutPrefix(token, "!"); isDeny {
+				rule, err := parseRuleToken(after)
+				if err != nil {
+					return err
 				}
-				noPerms = append(noPerms, after+":no")
-			} else {
-				// 普通路径：已有 :perm 后缀则原样保存（pathMatch 负责归一化），
-				// 否则补全 / 前缀和 :ro 默认权限
-				hasPerm := strings.HasSuffix(p, ":rw") || strings.HasSuffix(p, ":ro")
-				if !hasPerm {
-					if !strings.HasPrefix(p, "/") {
-						p = "/" + p
-					}
-					p = p + ":ro"
+				if rule == nil {
+					continue
 				}
-				normalPerms = append(normalPerms, p)
+				rule.Perm = PermNO
+				c.guestDenyRules = append(c.guestDenyRules, rule)
+				continue
+			}
+
+			rule, err := parseRuleToken(token)
+			if err != nil {
+				return err
+			}
+			if rule == nil {
+				continue
+			}
+			ac.Rules = append(ac.Rules, rule)
+		}
+
+		if len(ac.Rules) == 0 {
+			continue
+		}
+		auths[ac.Username] = ac
+	}
+
+	// 匿名基线：只保留允许规则，供已登录用户回退使用（`!` 认证墙不算基线）
+	if guest, ok := auths[""]; ok {
+		for _, rule := range guest.Rules {
+			if rule.Perm != PermNO {
+				c.guestRules = append(c.guestRules, rule)
 			}
 		}
+	}
 
-		// 排除规则放在前面，优先匹配
-		ac.PathPerms = append(noPerms, normalPerms...)
-
-		if len(ac.PathPerms) > 0 {
-			auths[ac.Username] = ac
+	// 顶层 deny：对所有人硬拒绝
+	for _, token := range c.Deny {
+		rule, err := parseRuleToken(token)
+		if err != nil {
+			return err
 		}
+		if rule == nil {
+			continue
+		}
+		c.hardDenyRules = append(c.hardDenyRules, rule)
 	}
 
 	c.parsedAuths = auths
 	return nil
-}
-
-func (c *Config) IsNeedAuth(reqPath string, isWrite bool) bool {
-	var matchedPerm string
-	var needCred bool
-
-	if !strings.HasPrefix(reqPath, "/") {
-		reqPath = "/" + reqPath
-	}
-
-	// 检查访客权限
-	authCfg, exists := c.parsedAuths[""]
-	if exists {
-		for _, pathWithPerm := range authCfg.PathPerms {
-			matched, perm := c.pathMatch(pathWithPerm, reqPath)
-			if matched {
-				if perm == PermNO {
-					return true
-				}
-				if matchedPerm == "" {
-					matchedPerm = perm
-					needCred = authCfg.Username != "" || authCfg.Password != ""
-				}
-			}
-		}
-	}
-
-	if matchedPerm == "" {
-		return true
-	}
-
-	if matchedPerm == PermRW {
-		return needCred
-	}
-
-	if matchedPerm == PermRO {
-		if isWrite {
-			return true
-		}
-		return needCred
-	}
-
-	return false
-}
-
-// MatchUserAuthConfig 根据用户名匹配认证配置
-func (c *Config) MatchUserAuthConfig(username, reqPath string) (*AuthConfig, bool) {
-	auth, exists := c.parsedAuths[username]
-	if !exists {
-		return nil, false
-	}
-
-	if !strings.HasPrefix(reqPath, "/") {
-		reqPath = "/" + reqPath
-	}
-
-	for _, pathWithPerm := range auth.PathPerms {
-		matched, perm := c.pathMatch(pathWithPerm, reqPath)
-		if matched {
-			result := *auth
-			result.Permission = perm
-			return &result, true
-		}
-	}
-
-	return nil, false
-}
-
-// MatchAuthConfig 匹配认证配置（无用户名时使用）
-func (c *Config) MatchAuthConfig(reqPath string) *AuthConfig {
-	var matchedAuth *AuthConfig
-	var noAuthMatched *AuthConfig
-
-	if !strings.HasPrefix(reqPath, "/") {
-		reqPath = "/" + reqPath
-	}
-
-	for _, auth := range c.parsedAuths {
-		for _, pathWithPerm := range auth.PathPerms {
-			matched, perm := c.pathMatch(pathWithPerm, reqPath)
-			if matched {
-				result := *auth
-				result.Permission = perm
-
-				if perm == PermNO {
-					return &result
-				}
-
-				if auth.Username == "" && auth.Password == "" {
-					if noAuthMatched == nil {
-						noAuthMatched = &result
-					}
-				} else {
-					if matchedAuth == nil {
-						matchedAuth = &result
-					}
-				}
-			}
-		}
-	}
-
-	if noAuthMatched != nil {
-		return noAuthMatched
-	}
-	return matchedAuth
-}
-
-// pathMatch 路径匹配
-// pattern 格式: path:perm 或 path（默认 ro）
-// 支持：* 或 /* 匹配所有路径；/prefix* 匹配前缀；/path 精确匹配或子路径匹配
-func (c *Config) pathMatch(pathWithPerm string, reqPath string) (bool, string) {
-	pattern, perm, found := strings.Cut(pathWithPerm, ":")
-	if !found {
-		pattern = pathWithPerm
-		perm = PermRO
-	}
-	if pattern == "" {
-		return false, ""
-	}
-
-	// 归一化：pattern 非裸 * 时补全 / 前缀
-	if pattern != "*" && !strings.HasPrefix(pattern, "/") {
-		pattern = "/" + pattern
-	}
-	// 归一化：reqPath 补全 / 前缀
-	if !strings.HasPrefix(reqPath, "/") {
-		reqPath = "/" + reqPath
-	}
-
-	// 通配后缀：*, /*, /prefix*, /prefix/* 均转为前缀匹配
-	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(reqPath, prefix), perm
-	}
-
-	// 精确匹配或子路径匹配（/path → /path 和 /path/...）
-	return reqPath == pattern || strings.HasPrefix(reqPath, pattern+"/"), perm
 }
 
 // CheckCredentials 验证用户名和密码是否匹配任意已配置用户
@@ -342,36 +223,19 @@ func (c *Config) CheckCredentials(username, password string) bool {
 	return subtle.ConstantTimeCompare([]byte(password), []byte(auth.Password)) == 1
 }
 
-// FilterNavsByPermission 过滤出当前用户有权访问的导航项
-// - 公开可访问（无需认证）的路径对所有人显示
-// - 需要认证的路径仅对有权限的已登录用户显示
-func (c *Config) FilterNavsByPermission(navs []NavItem, username string) []NavItem {
-	var filtered []NavItem
-	for _, nav := range navs {
-		navPath := nav.URL
-		if navPath == "" {
-			filtered = append(filtered, nav)
-			continue
-		}
-		// 公开可访问 → 所有人显示
-		if !c.IsNeedAuth(navPath, false) {
-			filtered = append(filtered, nav)
-			continue
-		}
-		// 需要认证 → 仅对有权限的已登录用户显示
-		if username != "" {
-			authConfig, exists := c.MatchUserAuthConfig(username, navPath)
-			if exists && authConfig.Permission != PermNO {
-				filtered = append(filtered, nav)
-			}
-		}
-	}
-	return filtered
-}
-
 // AuthEnabled 是否启用认证
 func (c *Config) AuthEnabled() bool {
 	return len(c.parsedAuths) > 0
+}
+
+// IconCDNKeys 返回已配置的图标 CDN key（排序后，保证输出稳定）
+func (c *Config) IconCDNKeys() []string {
+	keys := make([]string, 0, len(c.IconsCDN))
+	for k := range c.IconsCDN {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // ParsedAuths 解析后的认证配置
@@ -398,29 +262,24 @@ func (c *Config) SessionTTLDuration() time.Duration {
 	return d
 }
 
-// UserPermission 用户某路径的权限描述
+// UserPermission 用户某路径的权限描述（面向前端展示）
 type UserPermission struct {
 	Path       string `json:"path"`
 	Permission string `json:"perm"`
 }
 
-// UserPermissions 返回某个用户在配置中的权限规则列表
-// 直接基于解析后的 PathPerms 生成，便于前端展示
+// UserPermissions 返回某个用户在配置中的权限规则列表，用于前端展示。
 func (c *Config) UserPermissions(username string) []UserPermission {
 	auth, exists := c.parsedAuths[username]
 	if !exists {
 		return nil
 	}
 
-	perms := make([]UserPermission, 0, len(auth.PathPerms))
-	for _, pathWithPerm := range auth.PathPerms {
-		pattern, perm, found := strings.Cut(pathWithPerm, ":")
-		if !found {
-			perm = PermRO
-		}
+	perms := make([]UserPermission, 0, len(auth.Rules))
+	for _, rule := range auth.Rules {
 		perms = append(perms, UserPermission{
-			Path:       pattern,
-			Permission: perm,
+			Path:       rule.displayPath(),
+			Permission: string(rule.Perm),
 		})
 	}
 	return perms

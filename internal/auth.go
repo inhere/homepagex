@@ -3,8 +3,8 @@ package internal
 import (
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -33,34 +33,20 @@ func (s *Server) BasicAuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// 从 session cookie 中获取已登录用户
 		username := s.usernameFromRequest(r)
 
-		// 已登录用户：基于配置做权限判断
-		if username != "" {
-			authConfig, exists := s.config.MatchUserAuthConfig(username, reqPath)
-			if !exists || authConfig.Permission == PermNO {
-				s.sendError(w, "Forbidden", http.StatusForbidden)
+		// 统一走 Resolve：用户规则优先、未命中回退匿名基线、命中 deny 一律拒绝
+		acc := s.config.Resolve(username, reqPath, isWrite)
+		if !acc.Allowed {
+			if username == "" {
+				// 未登录：401，由前端弹出登录 UI（不发送 WWW-Authenticate）
+				s.sendError(w, "Unauthorized", http.StatusUnauthorized)
 				return
 			}
-
-			if isWrite && authConfig.Permission != PermRW {
-				s.sendError(w, "Forbidden", http.StatusForbidden)
-				return
-			}
-
-			// 将认证用户名注入 request context
-			ctx := context.WithValue(r.Context(), ContextKeyUsername, username)
-			next(w, r.WithContext(ctx))
+			s.sendError(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 
-		// 未登录用户：检查 path 是否允许匿名访问
-		if s.config.IsNeedAuth(reqPath, isWrite) {
-			// 不再发送 WWW-Authenticate 头，改为纯 JSON 401，由前端弹出登录 UI
-			s.sendError(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		// 公开访问，注入空用户名（游客）
-		ctx := context.WithValue(r.Context(), ContextKeyUsername, "")
+		// 将认证用户名注入 request context（游客为空字符串）
+		ctx := context.WithValue(r.Context(), ContextKeyUsername, username)
 		next(w, r.WithContext(ctx))
 	}
 }

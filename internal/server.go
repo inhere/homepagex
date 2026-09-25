@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -56,4 +57,12 @@ func (s *Server) sendError(w http.ResponseWriter, message string, status int) {
 		Success: false,
 		Error:   message,
 	})
+}
+
+// debugf 只在 debug 模式输出日志，避免逐请求日志刷屏
+func (s *Server) debugf(format string, args ...any) {
+	if s.config == nil || s.config.Server.Mode != "debug" {
+		return
+	}
+	log.Printf(format, args...)
 }
