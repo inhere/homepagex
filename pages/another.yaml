@@ -11,19 +11,19 @@ services:
     icon: "fas fa-bookmark"
     items:
       - name: "GitHub"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/github.png"
+        logo: "icons-local/dashboard-icons/png/github.png"
         subtitle: "Code hosting"
         url: "https://github.com"
         target: "_blank"
       
       - name: "Stack Overflow"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/stack-overflow.png"
+        # dashboard-icons / selfhst 里都没有这个图标，留空以使用首字母兜底显示
         subtitle: "Q&A for developers"
         url: "https://stackoverflow.com"
         target: "_blank"
       
       - name: "Reddit"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/reddit.png"
+        logo: "icons-local/dashboard-icons/png/reddit.png"
         subtitle: "Community discussions"
         url: "https://reddit.com"
         target: "_blank"
@@ -32,13 +32,13 @@ services:
     icon: "fas fa-tools"
     items:
       - name: "Vercel"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/vercel.png"
+        logo: "icons-local/dashboard-icons/png/vercel.png"
         subtitle: "Deployment platform"
         url: "https://vercel.com"
         target: "_blank"
       
       - name: "Figma"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/figma.png"
+        logo: "icons-local/dashboard-icons/png/figma.png"
         subtitle: "Design tool"
         url: "https://figma.com"
         target: "_blank"

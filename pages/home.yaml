@@ -16,21 +16,21 @@ services:
     icon: "fas fa-play-circle"
     items:
       - name: "Plex"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/plex.png"
+        logo: "icons-local/dashboard-icons/png/plex.png"
         subtitle: "Media server"
         tags: ["app"]
         url: "https://plex.example.com"
         target: "_blank"
 
       - name: "Jellyfin"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jellyfin.png"
+        logo: "icons-local/dashboard-icons/png/jellyfin.png"
         subtitle: "Open source media server"
         tags: ["app"]
         url: "https://jellyfin.example.com"
         target: "_blank"
 
       - name: "Sonarr"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/sonarr.png"
+        logo: "icons-local/dashboard-icons/png/sonarr.png"
         subtitle: "TV shows management"
         tags: ["app"]
         url: "https://sonarr.example.com"
@@ -40,21 +40,21 @@ services:
     icon: "fas fa-code"
     items:
       - name: "GitLab"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/gitlab.png"
+        logo: "icons-local/dashboard-icons/png/gitlab.png"
         subtitle: "Git repository"
         tags: ["dev", "git"]
         url: "https://gitlab.example.com"
         target: "_blank"
 
       - name: "Jenkins"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/jenkins.png"
+        logo: "icons-local/dashboard-icons/png/jenkins.png"
         subtitle: "CI/CD platform"
         tags: ["dev", "ci"]
         url: "https://jenkins.example.com"
         target: "_blank"
 
       - name: "Portainer"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/portainer.png"
+        logo: "icons-local/dashboard-icons/png/portainer.png"
         subtitle: "Docker management"
         tags: ["dev"]
         url: "https://portainer.example.com"
@@ -64,21 +64,21 @@ services:
     icon: "fas fa-server"
     items:
       - name: "Proxmox"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/proxmox.png"
+        logo: "icons-local/dashboard-icons/png/proxmox.png"
         subtitle: "Virtualization"
         tags: ["system", "pve"]
         url: "https://proxmox.example.com"
         target: "_blank"
 
       - name: "TrueNAS"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/truenas.png"
+        logo: "icons-local/dashboard-icons/png/truenas.png"
         subtitle: "NAS storage"
         tags: ["system", "nas"]
         url: "https://truenas.example.com"
         target: "_blank"
 
       - name: "Pi-hole"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/pihole.png"
+        logo: "icons-local/dashboard-icons/png/pi-hole.png"
         subtitle: "DNS ad blocker"
         tags: ["system"]
         url: "https://pihole.example.com"
@@ -88,14 +88,14 @@ services:
     icon: "fas fa-network-wired"
     items:
       - name: "Router"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/openwrt.png"
+        logo: "icons-local/dashboard-icons/png/openwrt.png"
         subtitle: "OpenWrt"
         tags: ["network"]
         url: "https://192.168.1.1"
         target: "_blank"
 
       - name: "Unifi"
-        logo: "https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/png/unifi.png"
+        logo: "icons-local/dashboard-icons/png/unifi.png"
         subtitle: "Network controller"
         tags: ["network"]
         url: "https://unifi.example.com"
