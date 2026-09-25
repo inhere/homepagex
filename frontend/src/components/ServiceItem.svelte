@@ -1,6 +1,11 @@
 <script>
   export let item = { name: '', url: '', logo: '', subtitle: '', tags: [] };
   export let style = 'cards';
+  // canEdit / itemIndex / onEdit / onDelete 由上层注入，用于单块编辑
+  export let canEdit = false;
+  export let itemIndex = 0;
+  export let onEdit = () => {};
+  export let onDelete = () => {};
 
   function getInitials(name) {
     if (!name) return '';
@@ -30,10 +35,30 @@
       handleClick();
     }
   }
+
+  function handleEdit(event) {
+    event.stopPropagation();
+    onEdit(itemIndex);
+  }
+
+  function handleDelete(event) {
+    event.stopPropagation();
+    onDelete(itemIndex);
+  }
 </script>
 
 {#if style === 'cards'}
   <div class="service-item card">
+    {#if canEdit}
+      <div class="item-actions">
+        <button class="act-btn" on:click={handleEdit} title="编辑" aria-label="编辑站点">
+          <i class="fas fa-pen"></i>
+        </button>
+        <button class="act-btn danger" on:click={handleDelete} title="删除" aria-label="删除站点">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    {/if}
     <button class="item-logo" on:click={handleClick} on:keydown={handleKeydown}>
       {#if item.logo}
         <img src={item.logo} alt={item.name} />
@@ -73,6 +98,16 @@
   </div>
 {:else}
   <div class="service-item list">
+    {#if canEdit}
+      <div class="item-actions">
+        <button class="act-btn" on:click={handleEdit} title="编辑" aria-label="编辑站点">
+          <i class="fas fa-pen"></i>
+        </button>
+        <button class="act-btn danger" on:click={handleDelete} title="删除" aria-label="删除站点">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+    {/if}
     <button class="item-logo" on:click={handleClick} on:keydown={handleKeydown}>
       {#if item.logo}
         <img src={item.logo} alt={item.name} />
@@ -112,7 +147,52 @@
 
 <style>
   .service-item {
+    position: relative;
     transition: all 0.3s ease;
+  }
+
+  /* 单块编辑入口：hover / focus-within 时出现 */
+  .item-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    z-index: 2;
+  }
+
+  .service-item:hover .item-actions,
+  .service-item:focus-within .item-actions {
+    opacity: 1;
+  }
+
+  .act-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(10, 16, 28, 0.75);
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .act-btn:hover {
+    background: var(--accent-soft, rgba(45, 139, 139, 0.35));
+    color: var(--accent, #a8dadc);
+    border-color: var(--accent, #a8dadc);
+  }
+
+  .act-btn.danger:hover {
+    background: rgba(220, 53, 69, 0.22);
+    color: #ff9aa2;
+    border-color: rgba(220, 53, 69, 0.6);
   }
 
   /* Card style */
@@ -121,14 +201,14 @@
     align-items: flex-start;
     gap: 16px;
     padding: 16px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface, rgba(255, 255, 255, 0.05));
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
   }
 
   .service-item.card:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--theme-primary-rgba);
+    background: var(--surface-hover, rgba(255, 255, 255, 0.1));
+    border-color: var(--accent-line, rgba(168, 218, 220, 0.55));
   }
 
   /* List style */
@@ -137,14 +217,14 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface, rgba(255, 255, 255, 0.03));
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.05));
   }
 
   .service-item.list:hover {
-    background: rgba(255, 255, 255, 0.08);
-    border-color: var(--theme-primary-rgba);
+    background: var(--surface-hover, rgba(255, 255, 255, 0.08));
+    border-color: var(--accent-line, rgba(168, 218, 220, 0.55));
   }
 
   .item-logo {
@@ -161,7 +241,7 @@
   }
 
   .item-logo:focus {
-    outline: 2px solid var(--theme-primary);
+    outline: 2px solid var(--accent, #a8dadc);
     outline-offset: 2px;
     border-radius: 8px;
   }
@@ -179,9 +259,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+    /* 原来是「深色背景色 → 深色」的渐变配白字，主题一换就脏；改成中性面 + 强调色文字 */
+    background: var(--surface-hover, rgba(255, 255, 255, 0.12));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     border-radius: 8px;
-    color: white;
+    color: var(--accent, #a8dadc);
     font-size: 1.2rem;
   }
 
@@ -216,18 +298,18 @@
     padding: 0;
     font-size: 1.1rem;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--ink, #ffffff);
     cursor: pointer;
     text-align: left;
     transition: color 0.2s;
   }
 
   .item-title:hover {
-    color: var(--theme-primary);
+    color: var(--accent, #a8dadc);
   }
 
   .item-title:focus {
-    outline: 2px solid var(--theme-primary);
+    outline: 2px solid var(--accent, #a8dadc);
     outline-offset: 2px;
   }
 
@@ -237,7 +319,7 @@
 
   .subtitle {
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ink-muted, rgba(255, 255, 255, 0.6));
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -246,7 +328,7 @@
 
   .item-subtitle {
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ink-muted, rgba(255, 255, 255, 0.6));
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
@@ -291,39 +373,39 @@
   }
 
   .copy-btn:hover {
-    color: var(--theme-primary);
-    background: var(--theme-primary-rgba);
+    color: var(--accent, #a8dadc);
+    background: var(--accent-soft, rgba(168, 218, 220, 0.16));
   }
 
   .list-actions {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .url-popover {
-    position: absolute;
-    /* top: 100%; */
-    right: 0;
-    /* margin-top: 8px; */
     display: flex;
     align-items: center;
     gap: 8px;
-    background: rgba(30, 30, 50, 0.95);
-    padding: 8px 12px;
+    flex-shrink: 0;
+    margin-left: auto;
+    /* 给右上角的编辑 / 删除按钮留出位置，避免遮挡 */
+    padding-right: 62px;
+  }
+
+  /* 列表视图的 URL：常态内联显示、超长省略。
+     原来是绝对定位且 top/margin-top 被注释掉，导致它永久浮在行上盖住标题。 */
+  .url-popover {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 260px;
+    padding: 6px 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    z-index: 100;
-    min-width: 200px;
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.08);
   }
 
   .tag {
     display: inline-block;
     padding: 2px 8px;
-    background: var(--theme-primary-rgba);
-    color: var(--theme-primary);
+    background: var(--accent-soft, rgba(168, 218, 220, 0.16));
+    border: 1px solid var(--accent-line, rgba(168, 218, 220, 0.55));
+    color: var(--accent, #a8dadc);
     font-size: 0.7rem;
     font-weight: 500;
     border-radius: 4px;
@@ -336,9 +418,15 @@
   }
 
   @media (max-width: 768px) {
+    .list-actions {
+      padding-right: 0;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+    }
+
     .url-popover {
-      min-width: 160px;
-      right: -50%;
+      max-width: 160px;
     }
   }
 </style>

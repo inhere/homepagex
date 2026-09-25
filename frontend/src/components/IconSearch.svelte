@@ -1,167 +1,126 @@
 <script>
   import { createEventDispatcher, onMount } from 'svelte';
+  import { pageConfig } from '../stores.js';
 
   const dispatch = createEventDispatcher();
+
+  // 已知图标源的元数据地址；实际可选来源由后端下发的 icon_cdn_keys 决定
+  const SOURCE_META = {
+    'dashboard-icons': {
+      label: 'Dashboard Icons',
+      metaUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@master/metadata.json',
+      kind: 'dashboard',
+      format: 'png',
+    },
+    'selfhst-icons': {
+      label: 'selfh.st Icons',
+      metaUrl: 'https://cdn.jsdelivr.net/gh/selfhst/icons@main/index.json',
+      kind: 'selfhst',
+      format: 'png',
+    },
+  };
 
   let searchQuery = '';
   let icons = [];
   let filteredIcons = [];
-  let loading = true;
+  let loading = false;
   let error = null;
 
-  let activeSourceId = 'dashboard';
+  let activeSourceId = '';
   let sourceCache = {};
 
-  const ICON_SOURCES = [
-    {
-      id: 'dashboard',
-      label: 'Dashboard Icons',
-      metaUrl: 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@master/metadata.json',
-      type: 'dashboard'
-    },
-    {
-      id: 'selfhst',
-      label: 'selfh.st Icons',
-      metaUrl: 'https://cdn.jsdelivr.net/gh/selfhst/icons@main/index.json',
-      type: 'selfhst'
-    }
-  ];
+  // 只展示「已配置 + 有元数据地址」的来源
+  $: sources = ($pageConfig.icon_cdn_keys || [])
+    .map((key) => {
+      const meta = SOURCE_META[key] || {};
+      return {
+        id: key,
+        label: meta.label || key,
+        metaUrl: meta.metaUrl || '',
+        kind: meta.kind || 'plain',
+        format: meta.format || 'png',
+      };
+    })
+    .filter((s) => s.metaUrl);
 
   function getActiveSource() {
-    return ICON_SOURCES.find((s) => s.id === activeSourceId) || ICON_SOURCES[0];
+    return sources.find((s) => s.id === activeSourceId) || sources[0] || null;
   }
 
+  // 接入后端的 icons-local 缓存：首次访问时由服务端下载并缓存，
+  // 这样页面配置里存的是本地路径，不再直连 CDN。
   function buildIconUrl(source, icon) {
-    if (source.type === 'dashboard') {
-      return `https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons@master/png/${icon.name}.png`;
-    }
+    return `icons-local/${source.id}/${source.format}/${icon.name}.${source.format}`;
+  }
 
-    // selfhst/icons - 使用 reference 作为文件名
-    if (source.type === 'selfhst') {
-      return `https://cdn.jsdelivr.net/gh/selfhst/icons@main/png/${icon.name}.png`;
-    }
+  function collectAliases(item) {
+    const aliases = [];
+    const raw =
+      item.aliases || item.Aliases || item.tags || item.Tags ||
+      item.keywords || item.Keywords || item.Category || item.category;
 
-    return icon.url || '';
+    if (Array.isArray(raw)) {
+      aliases.push(...raw);
+    } else if (typeof raw === 'string' && raw.trim()) {
+      raw
+        .split(/[,\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .forEach((s) => aliases.push(s));
+    }
+    return aliases;
   }
 
   function normalizeMetadata(source, metadata) {
-    const icons = [];
+    const result = [];
 
-    // dashboard-icons: metadata 是对象 { name: { aliases: [...] } }
-    if (source.type === 'dashboard' && metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    // dashboard-icons: { name: { aliases: [...] } }
+    if (source.kind === 'dashboard' && metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
       Object.entries(metadata).forEach(([name, data]) => {
-        icons.push({
-          name,
-          displayName: name,
-          aliases: (data && data.aliases) || []
-        });
+        result.push({ name, displayName: name, aliases: (data && data.aliases) || [] });
       });
-      return icons;
+      return result;
     }
 
-    // selfhst/icons: index.json 可能是数组或对象，这里做兼容处理
-    if (source.type === 'selfhst') {
-      // 某些版本可能包在 Icons 字段里
-      if (metadata && Array.isArray(metadata.Icons)) {
-        metadata = metadata.Icons;
-      }
-
-      // 数组形式
-      if (Array.isArray(metadata)) {
-        metadata.forEach((item) => {
-          if (!item) return;
-          const ref =
-            item.Reference ||
-            item.reference ||
-            item.Name ||
-            item.name ||
-            item.slug;
-          if (!ref) return;
-          const aliases = [];
-          const rawAliases =
-            item.aliases ||
-            item.Aliases ||
-            item.tags ||
-            item.Tags ||
-            item.keywords ||
-            item.Keywords ||
-            item.Category ||
-            item.category;
-
-          if (Array.isArray(rawAliases)) {
-            aliases.push(...rawAliases);
-          } else if (typeof rawAliases === 'string' && rawAliases.trim()) {
-            rawAliases
-              .split(/[,\s]+/)
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .forEach((s) => aliases.push(s));
-          }
-
-          const displayName =
-            item.Name ||
-            item.name ||
-            item.title ||
-            item.label ||
-            item.Reference ||
-            item.reference ||
-            ref;
-          icons.push({
-            name: ref,
-            displayName,
-            aliases
-          });
-        });
-        return icons;
-      }
-
-      // 对象形式 { immich: { ... }, ... }
-      if (metadata && typeof metadata === 'object') {
-        Object.entries(metadata).forEach(([ref, item]) => {
-          if (!item) return;
-          const aliases = [];
-          const rawAliases =
-            item.aliases ||
-            item.Aliases ||
-            item.tags ||
-            item.Tags ||
-            item.keywords ||
-            item.Keywords ||
-            item.Category ||
-            item.category;
-
-          if (Array.isArray(rawAliases)) {
-            aliases.push(...rawAliases);
-          } else if (typeof rawAliases === 'string' && rawAliases.trim()) {
-            rawAliases
-              .split(/[,\s]+/)
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .forEach((s) => aliases.push(s));
-          }
-
-          const displayName =
-            item.Name ||
-            item.name ||
-            item.title ||
-            item.label ||
-            item.Reference ||
-            item.reference ||
-            ref;
-          icons.push({
-            name: ref,
-            displayName,
-            aliases
-          });
-        });
-        return icons;
-      }
+    if (source.kind !== 'selfhst') {
+      return result;
     }
 
-    return icons;
+    if (metadata && Array.isArray(metadata.Icons)) {
+      metadata = metadata.Icons;
+    }
+
+    const push = (ref, item) => {
+      if (!ref) return;
+      result.push({
+        name: ref,
+        displayName: item.Name || item.name || item.title || item.label || item.Reference || item.reference || ref,
+        aliases: collectAliases(item),
+      });
+    };
+
+    if (Array.isArray(metadata)) {
+      metadata.forEach((item) => {
+        if (!item) return;
+        push(item.Reference || item.reference || item.Name || item.name || item.slug, item);
+      });
+      return result;
+    }
+
+    if (metadata && typeof metadata === 'object') {
+      Object.entries(metadata).forEach(([ref, item]) => {
+        if (!item) return;
+        push(ref, item);
+      });
+    }
+    return result;
   }
 
   async function loadIconsForSource(source) {
+    if (!source) {
+      return;
+    }
+
     loading = true;
     error = null;
 
@@ -175,14 +134,10 @@
         const metadata = await response.json();
         const normalized = normalizeMetadata(source, metadata).map((icon) => ({
           ...icon,
-          url: buildIconUrl(source, icon)
+          url: buildIconUrl(source, icon),
         }));
 
-        sourceCache = {
-          ...sourceCache,
-          [source.id]: normalized
-        };
-
+        sourceCache = { ...sourceCache, [source.id]: normalized };
         icons = normalized;
       }
 
@@ -196,6 +151,11 @@
 
   onMount(async () => {
     const source = getActiveSource();
+    if (!source) {
+      error = '未配置图标 CDN（config.yaml 的 icons_cdn）';
+      return;
+    }
+    activeSourceId = source.id;
     await loadIconsForSource(source);
   });
 
@@ -203,8 +163,7 @@
     if (id === activeSourceId) return;
     activeSourceId = id;
     searchQuery = '';
-    const source = getActiveSource();
-    await loadIconsForSource(source);
+    await loadIconsForSource(getActiveSource());
   }
 
   function handleSearch(event) {
@@ -217,9 +176,7 @@
 
     const results = icons.filter((icon) => {
       const nameMatch = (icon.name || '').toLowerCase().includes(searchQuery);
-      const displayNameMatch = (icon.displayName || '').toLowerCase().includes(
-        searchQuery
-      );
+      const displayNameMatch = (icon.displayName || '').toLowerCase().includes(searchQuery);
       const aliasMatch = (icon.aliases || []).some((alias) =>
         alias.toLowerCase().includes(searchQuery)
       );
@@ -247,18 +204,20 @@
       />
     </div>
 
-    <div class="source-toggle" aria-label="图标来源切换">
-      {#each ICON_SOURCES as source}
-        <button
-          type="button"
-          class="source-btn"
-          class:active={source.id === activeSourceId}
-          on:click={() => handleSourceChange(source.id)}
-        >
-          {source.label}
-        </button>
-      {/each}
-    </div>
+    {#if sources.length > 1}
+      <div class="source-toggle" aria-label="图标来源切换">
+        {#each sources as source}
+          <button
+            type="button"
+            class="source-btn"
+            class:active={source.id === activeSourceId}
+            on:click={() => handleSourceChange(source.id)}
+          >
+            {source.label}
+          </button>
+        {/each}
+      </div>
+    {/if}
   </div>
 
   <div class="icon-grid-container">
@@ -283,7 +242,7 @@
           <button
             class="icon-card"
             on:click={() => selectIcon(icon)}
-            title={icon.name}
+            title={`${icon.name}（点击插入 icons-local 路径）`}
           >
             <img src={icon.url} alt={icon.name} class="icon-image" />
             <span class="icon-name">{icon.name}</span>
@@ -346,13 +305,13 @@
   }
 
   .source-btn.active {
-    background: var(--theme-primary, #4a9eff);
-    color: #ffffff;
+    background: var(--accent, #4a9eff);
+    color: #08131f;
   }
 
   .search-input-wrapper:focus-within {
     background: rgba(255, 255, 255, 0.1);
-    border-color: var(--theme-primary, #4a9eff);
+    border-color: var(--accent, #4a9eff);
   }
 
   .search-input-wrapper i {
@@ -404,16 +363,16 @@
 
   .icon-card:hover {
     background: rgba(255, 255, 255, 0.1);
-    border-color: var(--theme-primary, #4a9eff);
+    border-color: var(--accent, #4a9eff);
     transform: translateY(-2px);
   }
 
+  /* 保留图标原色：之前用 brightness(0) invert(1) 把彩色 logo 变成白色剪影，
+     预览与页面上实际效果不一致 */
   .icon-image {
     width: 48px;
     height: 48px;
     object-fit: contain;
-    filter: brightness(0) invert(1);
-    opacity: 0.9;
   }
 
   .icon-name {
@@ -453,7 +412,7 @@
   }
 
   .icon-grid-container::-webkit-scrollbar {
-    width: 6px;
+    height: 6px;
   }
 
   .icon-grid-container::-webkit-scrollbar-track {

@@ -6,8 +6,9 @@
   import TagFilter from './components/TagFilter.svelte';
   import ServiceGroup from './components/ServiceGroup.svelte';
   import YamlEditor from './components/YamlEditor.svelte';
+  import BlockEditor from './components/BlockEditor.svelte';
   import LoginModal from './components/LoginModal.svelte';
-  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeColors, userInfo } from './stores.js';
+  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens } from './stores.js';
 
   let loading = true;
   let error = null;
@@ -17,18 +18,65 @@
   let allTags = [];
   let showYamlEditor = false;
   let showLoginModal = false;
+  // 单块编辑（表单 / 源码）：{ kind, mode, serviceIndex, index }
+  let blockEditor = null;
 
-  $: themeColors = getThemeColors($currentTheme);
-  $: themeVars = `
-    --theme-primary: ${themeColors.primary};
-    --theme-secondary: ${themeColors.secondary};
-    --theme-accent: ${themeColors.accent};
-    --theme-background: ${themeColors.background};
-    --theme-primary-rgba: ${themeColors.primary}33;
-    --theme-secondary-rgba: ${themeColors.secondary}33;
-    --theme-accent-rgba: ${themeColors.accent}33;
-    --theme-background-rgba: ${themeColors.background}dd;
-  `;
+  function openItemEditor(serviceIndex, itemIndex) {
+    blockEditor = { kind: 'item', mode: 'edit', serviceIndex, index: itemIndex };
+  }
+
+  function openNewItem(serviceIndex) {
+    blockEditor = { kind: 'item', mode: 'insert', serviceIndex, index: 0 };
+  }
+
+  function openServiceEditor(serviceIndex) {
+    blockEditor = { kind: 'service', mode: 'edit', serviceIndex, index: serviceIndex };
+  }
+
+  function openNewService() {
+    blockEditor = { kind: 'service', mode: 'insert', serviceIndex: 0, index: 0 };
+  }
+
+  function closeBlockEditor() {
+    blockEditor = null;
+  }
+
+  function handleBlockSaved() {
+    blockEditor = null;
+    loadConfig(getRoute());
+  }
+
+  async function deleteItem(serviceIndex, itemIndex) {
+    if (!confirm('确定删除这个站点吗？')) {
+      return;
+    }
+
+    try {
+      const resp = await fetch(`/api/page${getRoute()}?op=block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          kind: 'item',
+          action: 'delete',
+          service_index: serviceIndex,
+          index: itemIndex,
+        }),
+      });
+      const payload = await resp.json().catch(() => null);
+      if (!resp.ok || !payload || !payload.success) {
+        throw new Error((payload && payload.error) || '删除失败');
+      }
+      await loadConfig(getRoute());
+    } catch (e) {
+      error = e.message;
+    }
+  }
+
+  // 主题只提供色值映射，组件一律使用语义 token（--ink / --accent / --surface ...）
+  $: themeVars = Object.entries(getThemeTokens($currentTheme))
+    .map(([k, v]) => `${k}: ${v};`)
+    .join('');
 
   function matchesAllKeywords(text, keywords) {
     if (!keywords.length) return true;
@@ -61,7 +109,12 @@
   }
 
   $: {
-    const baseServices = $pageConfig.services || [];
+    // 保留 _serviceIndex / _itemIndex：过滤后仍能定位到配置文件里的原始位置
+    const baseServices = ($pageConfig.services || []).map((service, si) => ({
+      ...service,
+      _serviceIndex: si,
+      items: (service.items || []).map((item, ii) => ({ ...item, _itemIndex: ii })),
+    }));
     allTags = collectTags(baseServices);
 
     let result = baseServices;
@@ -250,16 +303,18 @@
         <Navbar navs={$pageConfig.navs} currentPath={$currentRoute} onNavigate={handleNavigate} />
       {/if}
 
-      <Toolbar onSearch={handleSearch} onOpenEditor={openYamlEditor} />
+      <Toolbar onSearch={handleSearch} onOpenEditor={openYamlEditor} onAddService={openNewService} />
 
       <div class="main-content">
-        <aside class="sidebar">
-          <TagFilter
-            tags={allTags}
-            {selectedTag}
-            onSelectTag={handleSelectTag}
-          />
-        </aside>
+        {#if allTags.length > 0}
+          <aside class="sidebar">
+            <TagFilter
+              tags={allTags}
+              {selectedTag}
+              onSelectTag={handleSelectTag}
+            />
+          </aside>
+        {/if}
 
         <div class="services-wrapper">
           {#if filteredServices.length === 0}
@@ -270,7 +325,15 @@
           {:else}
             <div class="services-container" style="--columns: {$pageConfig.columns || '3'}">
               {#each filteredServices as service}
-                <ServiceGroup {service} style={$viewStyle} />
+                <ServiceGroup
+                  {service}
+                  style={$viewStyle}
+                  canEdit={!!$pageConfig.can_write}
+                  onEditItem={(itemIndex) => openItemEditor(service._serviceIndex, itemIndex)}
+                  onDeleteItem={(itemIndex) => deleteItem(service._serviceIndex, itemIndex)}
+                  onAddItem={() => openNewItem(service._serviceIndex)}
+                  onEditService={() => openServiceEditor(service._serviceIndex)}
+                />
               {/each}
             </div>
           {/if}
@@ -285,12 +348,25 @@
     {/if}
   </main>
 
-  <!-- YAML Editor Modal -->
+  <!-- YAML Editor Modal（整文件，高级入口） -->
   {#if showYamlEditor}
     <YamlEditor
       pagePath={$currentRoute}
       on:close={closeYamlEditor}
       on:save-success={handleSaveSuccess}
+    />
+  {/if}
+
+  <!-- 单块编辑：只改一个站点 / 分组，表单与源码可切换 -->
+  {#if blockEditor}
+    <BlockEditor
+      pagePath={$currentRoute}
+      kind={blockEditor.kind}
+      mode={blockEditor.mode}
+      serviceIndex={blockEditor.serviceIndex}
+      index={blockEditor.index}
+      on:close={closeBlockEditor}
+      on:saved={handleBlockSaved}
     />
   {/if}
 
@@ -311,27 +387,36 @@
 
   :global(body) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: var(--theme-primary);
+    background: var(--bg-deep, #1a2332);
     min-height: 100vh;
-    color: var(--theme-background);
-    transition: background 0.5s ease, color 0.5s ease;
+    color: var(--ink, #ffffff);
+    transition: background 0.4s ease, color 0.4s ease;
   }
 
+  /* 语义 token 的兜底值，保证在任何主题变量注入前也不会掉样式 */
   :global(:root) {
-    --theme-primary: #1a2332;
-    --theme-secondary: #2d8b8b;
-    --theme-accent: #a8dadc;
-    --theme-background: #f1faee;
-    --theme-primary-rgba: rgba(26, 35, 50, 0.2);
-    --theme-secondary-rgba: rgba(45, 139, 139, 0.2);
-    --theme-accent-rgba: rgba(168, 218, 220, 0.2);
-    --theme-background-rgba: rgba(241, 250, 238, 0.87);
+    --bg-deep: #1a2332;
+    --bg-mid: #12293a;
+    --bg-grad: linear-gradient(165deg, #1a2332 0%, #12293a 100%);
+    --surface: rgba(255, 255, 255, 0.06);
+    --surface-hover: rgba(255, 255, 255, 0.12);
+    --border: rgba(255, 255, 255, 0.12);
+    --border-strong: rgba(255, 255, 255, 0.24);
+    --ink: #ffffff;
+    --ink-muted: rgba(255, 255, 255, 0.68);
+    --ink-soft: rgba(255, 255, 255, 0.45);
+    --accent: #a8dadc;
+    --accent-soft: rgba(168, 218, 220, 0.16);
+    --accent-line: rgba(168, 218, 220, 0.55);
+    --accent-ink: #1a2332;
   }
 
   .theme-wrapper {
     min-height: 100vh;
-    background: linear-gradient(135deg, var(--theme-primary) 0%, var(--theme-secondary) 50%, var(--theme-accent) 100%);
-    transition: background 0.5s ease;
+    /* 只用两段深色渐变：之前是三段并在右下角铺到浅色，白字对比度随位置剧烈变化 */
+    background: var(--bg-grad, linear-gradient(165deg, #1a2332 0%, #12293a 100%));
+    background-attachment: fixed;
+    transition: background 0.4s ease;
   }
 
   .app {
@@ -380,7 +465,7 @@
     align-items: center;
     justify-content: center;
     padding: 60px 20px;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-soft, rgba(255, 255, 255, 0.45));
     gap: 16px;
   }
 
@@ -395,17 +480,26 @@
 
   .services-container {
     display: grid;
-    grid-template-columns: repeat(var(--columns, 3), minmax(280px, 1fr));
+    /* 用 --columns 作为「最大列数」参与计算：每列最小宽度 =
+       max(280px, 扣除间距后均分给 columns 列的宽度)。
+       容器够宽时正好 columns 列；变窄后回落到 280px 起自动换列。
+       之前是固定 repeat(columns, ...) + 媒体查询硬覆盖成 2 列，
+       导致 columns: "4" 在 1366 宽度的笔记本上只显示 2 列。 */
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(
+        max(280px, calc((100% - (var(--columns, 3) - 1) * 24px) / var(--columns, 3))),
+        1fr
+      )
+    );
     gap: 24px;
   }
 
-  /* Responsive */
-  @media (max-width: 1400px) {
-    .services-container {
-      grid-template-columns: repeat(2, minmax(280px, 1fr));
-    }
+  .services-container > :global(*) {
+    min-width: 0;
   }
 
+  /* Responsive */
   @media (max-width: 900px) {
     .main-content {
       flex-direction: column;
@@ -413,10 +507,6 @@
 
     .sidebar {
       width: 100%;
-    }
-
-    .services-container {
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     }
   }
 
@@ -436,7 +526,16 @@
   .footer {
     text-align: center;
     padding: 40px 20px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft, rgba(255, 255, 255, 0.45));
     font-size: 0.9rem;
+  }
+
+  /* 尊重系统「减少动态效果」设置 */
+  @media (prefers-reduced-motion: reduce) {
+    :global(*),
+    .theme-wrapper {
+      transition: none !important;
+      animation: none !important;
+    }
   }
 </style>

@@ -1,14 +1,20 @@
 <script>
-  import { viewStyle, themes, currentTheme, getThemeColors, userInfo, currentRoute } from '../stores.js';
+  import { viewStyle, themes, currentTheme, pageConfig } from '../stores.js';
 
   export let onSearch = () => {};
   export let onOpenEditor = () => {};
+  export let onAddService = () => {};
 
   let searchQuery = '';
   let showThemeDropdown = false;
 
-  $: themeColors = getThemeColors($currentTheme);
   $: currentThemeName = themes.find(t => t.id === $currentTheme)?.name || '默认主题';
+
+  // 主题预览色：用「背景色 → 强调色」最能体现主题观感
+  function themeSwatch(themeId) {
+    const theme = themes.find(t => t.id === themeId) || themes[0];
+    return `linear-gradient(135deg, ${theme.colors[0]}, ${theme.colors[2]})`;
+  }
 
   function handleSearch(event) {
     searchQuery = event.target.value;
@@ -42,64 +48,8 @@
     }
   }
 
-  // 前端复用与后端类似的路径匹配逻辑，判断当前路由是否具备 rw 权限
-  function matchPermForPath(pattern, perm, routePath) {
-    if (!pattern) {
-      return null;
-    }
-
-    let p = pattern;
-    let per = perm || 'ro';
-    let reqPath = routePath || '/';
-
-    if (p !== '*' && !p.startsWith('/')) {
-      p = '/' + p;
-    }
-    if (!reqPath.startsWith('/')) {
-      reqPath = '/' + reqPath;
-    }
-
-    // 通配后缀：*, /*, /prefix*, /prefix/* → 前缀匹配
-    if (p.endsWith('*')) {
-      const prefix = p.slice(0, -1);
-      return reqPath.startsWith(prefix) ? per : null;
-    }
-
-    // 精确匹配 或 子路径匹配
-    if (reqPath === p || reqPath.startsWith(p + '/')) {
-      return per;
-    }
-
-    return null;
-  }
-
-  function hasWritePermissionForRoute(perms, routePath) {
-    if (!perms || !perms.length) return false;
-
-    for (const rule of perms) {
-      const pattern = rule.path || rule.Path;
-      const perm = rule.perm || rule.Permission;
-      const matchedPerm = matchPermForPath(pattern, perm, routePath);
-      if (!matchedPerm) continue;
-
-      // 后端解析时已将禁止规则排在前面，这里遇到 no 直接视为无权
-      if (matchedPerm === 'no') {
-        return false;
-      }
-
-      // 找到第一条匹配规则，且为 rw，则认为当前路由可编辑
-      if (matchedPerm === 'rw') {
-        return true;
-      }
-
-      // 匹配到 ro，则继续找后续是否有更具体的 rw 规则
-    }
-
-    return false;
-  }
-
-  $: canEditCurrentRoute =
-    !!$userInfo && hasWritePermissionForRoute($userInfo.permissions || [], $currentRoute);
+  // 是否可编辑由后端随页面数据下发（can_write），前端不再自己复刻一套权限匹配逻辑
+  $: canEditCurrentRoute = !!$pageConfig?.can_write;
 </script>
 
 <svelte:window on:keydown={handleKeydown} on:click={handleClickOutside} />
@@ -129,7 +79,7 @@
       >
         <div
           class="theme-indicator"
-          style="background: linear-gradient(135deg, {themeColors.primary}, {themeColors.secondary})"
+          style="background: {themeSwatch($currentTheme)}"
         ></div>
         <span class="theme-name">{currentThemeName}</span>
         <i class="fas fa-chevron-down" class:open={showThemeDropdown}></i>
@@ -138,7 +88,6 @@
       {#if showThemeDropdown}
         <div class="theme-dropdown">
           {#each themes as theme}
-            {@const colors = getThemeColors(theme.id)}
             <button
               class="theme-option"
               class:active={$currentTheme === theme.id}
@@ -146,7 +95,7 @@
             >
               <div
                 class="theme-preview"
-                style="background: linear-gradient(135deg, {colors.primary}, {colors.secondary})"
+                style="background: {themeSwatch(theme.id)}"
               ></div>
               <span>{theme.name}</span>
               {#if $currentTheme === theme.id}
@@ -164,9 +113,13 @@
     </button>
 
     {#if canEditCurrentRoute}
-      <button class="edit-btn" type="button" on:click={onOpenEditor} title="编辑当前页面 YAML">
+      <button class="edit-btn" type="button" on:click={onAddService} title="新增分组">
+        <i class="fas fa-folder-plus"></i>
+        <span>新增分组</span>
+      </button>
+      <button class="edit-btn" type="button" on:click={onOpenEditor} title="编辑整份页面 YAML（高级）">
         <i class="fas fa-edit"></i>
-        <span>编辑</span>
+        <span>原始 YAML</span>
       </button>
     {/if}
   </div>
@@ -195,7 +148,7 @@
 
   .search-box:focus-within {
     background: rgba(255, 255, 255, 0.15);
-    border-color: var(--theme-primary-rgba);
+    border-color: var(--accent-soft);
   }
 
   .search-box i {
@@ -314,7 +267,7 @@
   }
 
   .theme-option.active {
-    background: var(--theme-primary-rgba);
+    background: var(--accent-soft);
   }
 
   .theme-preview {
@@ -326,7 +279,7 @@
 
   .theme-option i {
     margin-left: auto;
-    color: var(--theme-primary);
+    color: var(--accent);
     font-size: 0.85rem;
   }
 
@@ -368,8 +321,8 @@
   }
 
   .edit-btn:hover {
-    background: var(--theme-primary-rgba);
-    border-color: var(--theme-primary);
+    background: var(--accent-soft);
+    border-color: var(--accent);
     transform: translateY(-1px);
   }
 

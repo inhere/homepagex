@@ -7,9 +7,14 @@
   export let pagePath;
 
   let editorValue = '';
+  let originalValue = '';
   let loading = true;
   let saving = false;
   let error = null;
+  let textareaEl = null;
+  let overlayEl = null;
+
+  $: dirty = !loading && editorValue !== originalValue;
 
   onMount(async () => {
     await loadYaml();
@@ -25,10 +30,11 @@
       const response = await fetch(`/api/page${pagePath}?op=r`, {
         credentials: 'include',
       });
-      
+
       const data = await response.json();
       if (data.success && data.data) {
         editorValue = data.data.content;
+        originalValue = data.data.content;
       } else {
         throw new Error(data.error || '加载失败');
       }
@@ -60,13 +66,15 @@
         })
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || '保存失败');
+      // 必须同时校验 HTTP 状态与业务 success：
+      // 后端校验失败会返回 success:false，只判断 response.ok 会把失败当成功，
+      // 导致弹窗关闭、重新加载旧内容，用户的修改被静默丢弃。
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload || !payload.success) {
+        throw new Error((payload && payload.error) || '保存失败');
       }
 
       dispatch('save-success');
-      handleClose();
     } catch (err) {
       error = err.message;
     } finally {
@@ -75,32 +83,47 @@
   }
 
   function handleClose() {
+    if (saving) {
+      return;
+    }
+    if (dirty && !confirm('有未保存的修改，确定关闭吗？')) {
+      return;
+    }
     dispatch('close');
   }
 
-  function handleOverlayClick(event) {
+  function handleWindowClick(event) {
     // 仅当点击在遮罩本身（而不是对话框内容）时才关闭
-    if (event.target !== event.currentTarget) {
-      return;
+    if (event.target === overlayEl) {
+      handleClose();
     }
-    handleClose();
   }
 
   function handleKeydown(event) {
     if (event.key === 'Escape') {
       handleClose();
+    } else if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault();
+      if (!saving && !loading) {
+        handleSave();
+      }
     }
   }
 
   function handleIconSelect(event) {
     const iconUrl = event.detail;
-    const textarea = document.querySelector('.yaml-editor');
+    const textarea = textareaEl;
+    if (!textarea) {
+      editorValue += iconUrl;
+      return;
+    }
+
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const text = editorValue;
-    
+
     editorValue = text.substring(0, start) + iconUrl + text.substring(end);
-    
+
     // Reset cursor position
     setTimeout(() => {
       textarea.focus();
@@ -110,10 +133,9 @@
   }
 </script>
 
-<div
-  class="modal-overlay"
-  on:click={handleOverlayClick}
->
+<svelte:window on:click={handleWindowClick} />
+
+<div class="modal-overlay" bind:this={overlayEl}>
   <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-header">
       <h2 class="modal-title">
@@ -147,6 +169,7 @@
         {:else}
           <textarea
             class="yaml-editor"
+            bind:this={textareaEl}
             bind:value={editorValue}
             placeholder="YAML 配置内容..."
             spellcheck="false"
@@ -190,8 +213,8 @@
     bottom: 0;
     background: radial-gradient(
       circle at top,
-      var(--theme-secondary-rgba, rgba(255, 255, 255, 0.05)),
-      rgba(0, 0, 0, 0.75)
+      var(--accent-soft, rgba(255, 255, 255, 0.05)),
+      rgba(0, 0, 0, 0.78)
     );
     backdrop-filter: blur(8px);
     display: flex;
@@ -209,12 +232,8 @@
   }
 
   .modal-container {
-    background: linear-gradient(
-      135deg,
-      var(--theme-primary-rgba, rgba(20, 20, 40, 0.98)),
-      var(--theme-secondary-rgba, rgba(10, 10, 25, 0.98))
-    );
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(12, 18, 30, 0.98);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
     border-radius: 12px;
     width: 100%;
     max-width: 1200px;
@@ -244,7 +263,7 @@
   }
 
   .modal-title i {
-    color: var(--theme-primary, #4a9eff);
+    color: var(--accent);
   }
 
   .close-btn {
@@ -302,7 +321,7 @@
   }
 
   .section-title i {
-    color: var(--theme-primary, #4a9eff);
+    color: var(--accent);
     font-size: 0.85rem;
   }
 
@@ -336,7 +355,7 @@
   }
 
   .yaml-editor:focus {
-    border-color: var(--theme-primary, #4a9eff);
+    border-color: var(--accent);
   }
 
   .yaml-editor::placeholder {
@@ -410,15 +429,15 @@
   }
 
   .btn-save {
-    background: var(--theme-primary, #4a9eff);
-    border-color: var(--theme-primary, #4a9eff);
-    color: white;
+    background: var(--accent, #a8dadc);
+    border-color: var(--accent, #a8dadc);
+    color: var(--accent-ink, #1a2332);
+    font-weight: 600;
   }
 
   .btn-save:hover:not(:disabled) {
-    background: var(--theme-primary-dark, #3a8eef);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(74, 158, 255, 0.3);
+    filter: brightness(1.08);
+    transform: translateY(-1px);
   }
 
   @media (max-width: 768px) {

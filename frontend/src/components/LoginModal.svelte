@@ -110,8 +110,8 @@
     position: fixed;
     inset: 0;
     background:
-      radial-gradient(circle at top, var(--theme-secondary-rgba, rgba(45, 139, 139, 0.55)), transparent 55%),
-      rgba(0, 0, 0, 0.55);
+      radial-gradient(circle at top, var(--accent-soft, rgba(168, 218, 220, 0.35)), transparent 55%),
+      rgba(0, 0, 0, 0.6);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -121,17 +121,13 @@
   .modal {
     width: 100%;
     max-width: 420px;
-    background: linear-gradient(
-      150deg,
-      var(--theme-primary-rgba, rgba(10, 20, 40, 0.96)),
-      rgba(0, 0, 0, 0.9)
-    );
+    background: rgba(12, 18, 30, 0.97);
     border-radius: 16px;
     padding: 24px 24px 20px;
-    border: 1px solid var(--theme-accent-rgba, rgba(255, 255, 255, 0.12));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(16px);
-    color: var(--theme-background, #f5f5f5);
+    color: var(--ink, #f5f5f5);
   }
 
   .modal-title {
@@ -178,8 +174,8 @@
   }
 
   .field input:focus {
-    border-color: var(--theme-accent, #a8dadc);
-    box-shadow: 0 0 0 1px var(--theme-accent-rgba, rgba(168, 218, 220, 0.4));
+    border-color: var(--accent, #a8dadc);
+    box-shadow: 0 0 0 1px var(--accent-soft, rgba(168, 218, 220, 0.4));
     background: rgba(5, 10, 25, 1);
   }
 
@@ -221,9 +217,10 @@
   }
 
   .btn.primary {
-    background: var(--theme-secondary, #2d8b8b);
-    border-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background: var(--accent, #a8dadc);
+    border-color: var(--accent, #a8dadc);
+    color: var(--accent-ink, #1a2332);
+    font-weight: 600;
   }
 
   .btn.primary:hover:not(:disabled) {

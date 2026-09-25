@@ -200,10 +200,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, var(--theme-primary), var(--theme-secondary));
+    /* 原来是「深色背景色」渐变配白字，换成中性面 + 强调色，随主题变化 */
+    background: var(--surface-hover, rgba(255, 255, 255, 0.12));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
     border-radius: 12px;
     font-size: 2rem;
-    color: white;
+    color: var(--accent, #a8dadc);
     flex-shrink: 0;
   }
 
@@ -215,7 +217,7 @@
   .title {
     font-size: 2.5rem;
     font-weight: 700;
-    color: #ffffff;
+    color: var(--ink, #ffffff);
     margin: 0;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   }
@@ -260,7 +262,7 @@
 
   .user-info i {
     font-size: 1.1rem;
-    color: var(--theme-primary);
+    color: var(--accent, #a8dadc);
   }
 
   .user-info .caret {
@@ -281,19 +283,16 @@
     max-height: 320px;
     padding: 10px 12px;
     border-radius: 14px;
-    background: linear-gradient(
-      140deg,
-      var(--theme-primary-rgba, rgba(10, 16, 28, 0.96)),
-      var(--theme-secondary-rgba, rgba(45, 139, 139, 0.8))
-    );
-    border: 1px solid var(--theme-accent-rgba, rgba(255, 255, 255, 0.18));
+    /* 下拉面板用固定的深色玻璃面，不再拿主题的「深色背景色 + 透明度」拼渐变 */
+    background: rgba(12, 18, 30, 0.96);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.18));
     box-shadow:
       0 18px 45px rgba(0, 0, 0, 0.45),
       0 0 0 1px rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(18px);
     z-index: 1500;
     overflow: hidden;
-    color: var(--theme-background, #f5f5f5);
+    color: var(--ink, #f5f5f5);
   }
 
   .perm-header {
@@ -306,7 +305,7 @@
   .perm-title {
     font-size: 0.9rem;
     font-weight: 600;
-    color: var(--theme-background, #ffffff);
+    color: var(--ink, #ffffff);
   }
 
   .perm-count {
@@ -348,7 +347,7 @@
 
   .perm-icon-wrapper i {
     font-size: 0.9rem;
-    color: var(--theme-accent);
+    color: var(--accent, #a8dadc);
   }
 
   .perm-content {
@@ -377,19 +376,23 @@
     color: rgba(255, 255, 255, 0.9);
   }
 
+  /* 权限徽标用固定语义色（绿/黄/红），不再借用主题背景色 —— 否则边框和文字几乎看不见 */
   .perm-badge.perm-rw {
-    background: var(--theme-primary-rgba, rgba(76, 175, 80, 0.16));
-    border-color: var(--theme-primary, #4caf50);
+    background: rgba(76, 175, 80, 0.18);
+    border-color: rgba(76, 175, 80, 0.7);
+    color: #b9f6ca;
   }
 
   .perm-badge.perm-ro {
-    background: var(--theme-secondary-rgba, rgba(255, 193, 7, 0.16));
-    border-color: var(--theme-secondary, #ffc107);
+    background: rgba(255, 193, 7, 0.16);
+    border-color: rgba(255, 193, 7, 0.7);
+    color: #ffe082;
   }
 
   .perm-badge.perm-no {
     background: rgba(244, 67, 54, 0.18);
     border-color: rgba(244, 67, 54, 0.7);
+    color: #ffb4b8;
   }
 
   .perm-footer {
@@ -420,17 +423,17 @@
 
   .btn-auth:hover {
     background: rgba(255, 255, 255, 0.15);
-    color: #ffffff;
+    color: var(--ink, #ffffff);
     border-color: rgba(255, 255, 255, 0.4);
   }
 
   .btn-auth.login {
-    border-color: var(--theme-primary);
-    color: var(--theme-primary);
+    border-color: var(--accent-line, rgba(168, 218, 220, 0.55));
+    color: var(--accent, #a8dadc);
   }
 
   .btn-auth.login:hover {
-    background: var(--theme-primary-rgba);
+    background: var(--accent-soft, rgba(168, 218, 220, 0.16));
   }
 
   @media (max-width: 768px) {

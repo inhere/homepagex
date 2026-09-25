@@ -21,7 +21,7 @@
 
 <style>
   .navbar {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface, rgba(255, 255, 255, 0.05));
     border-radius: 12px;
     padding: 8px;
     margin-bottom: 20px;
@@ -38,24 +38,27 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-muted, rgba(255, 255, 255, 0.68));
     text-decoration: none;
     border-radius: 8px;
-    transition: all 0.3s ease;
+    transition: background 0.25s ease, color 0.25s ease;
     font-size: 0.95rem;
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     cursor: pointer;
   }
 
   .nav-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    background: var(--surface-hover, rgba(255, 255, 255, 0.1));
+    color: var(--ink, #ffffff);
   }
 
+  /* 选中态：强调色文字 + 强调色淡底。
+     之前是 color: var(--theme-primary)（深色背景色）压在深色半透明底上，几乎不可读 */
   .nav-item.active {
-    background: var(--theme-primary-rgba);
-    color: var(--theme-primary);
+    background: var(--accent-soft, rgba(168, 218, 220, 0.16));
+    border-color: var(--accent-line, rgba(168, 218, 220, 0.55));
+    color: var(--accent, #a8dadc);
   }
 
   .nav-item i {
