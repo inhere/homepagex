@@ -1,32 +1,45 @@
-# Build stage
-FROM golang:1.24-alpine AS backend-builder
+# HomePageX 镜像：前端（Svelte/Rollup） -> 后端（Go） -> 运行镜像
+#
+# 注意：构建上下文是仓库根目录（见 docker-compose.yml 的 build.context: ..），
+# 因此这里用 frontend/ 、internal/ 这类相对仓库根的路径。
+
+# ---------- 1. 构建前端 ----------
+FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
-COPY backend/ ./backend/
-RUN cd backend && go mod tidy && go build -o homepagex
+RUN corepack enable
 
-# Frontend is static, no build needed
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 
-# Final stage
+COPY frontend/ ./
+RUN pnpm run build
+
+# ---------- 2. 构建后端 ----------
+FROM golang:1.25-alpine AS backend-builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY main.go ./
+COPY internal/ ./internal/
+RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o homepagex .
+
+# ---------- 3. 运行 ----------
 FROM alpine:latest
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS
+# 图标缓存与远程下载需要 CA 证书
 RUN apk --no-cache add ca-certificates
 
-# Copy backend binary
-COPY --from=backend-builder /app/backend/homepagex ./
-
-# Copy frontend static files
-COPY frontend/build/ ./frontend/build/
-
-# Copy config and pages
+COPY --from=backend-builder /app/homepagex ./
+COPY --from=frontend-builder /app/build ./frontend/build
 COPY config.yaml ./
 COPY pages/ ./pages/
 
-# Expose port
 EXPOSE 8090
 
-# Run
 CMD ["./homepagex"]

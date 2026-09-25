@@ -126,10 +126,12 @@ go-homepagex/
    - Use `sendJSON()` and `sendError()` helpers
    - API responses wrapped in `APIResponse{Success, Data, Error}`
 
-3. **Auth Middleware** (`internal/auth.go`):
-   - `BasicAuthMiddleware()` wraps handlers requiring auth
-   - Injects username into `r.Context()` via `ContextKeyUsername`
-   - Path-based permissions: `rw` (read-write), `ro` (read-only), `no` (denied)
+3. **Auth Middleware** (`internal/auth.go` + `internal/perm.go`):
+   - `BasicAuthMiddleware()` 统一调用 `Config.Resolve(username, path, isWrite)`
+   - 用户名注入 `r.Context()` 的 `ContextKeyUsername`
+   - 权限值：`rw`（读写）/ `ro`（只读）/ `no`（拒绝）；规则最具体者优先，同级取更严格
+   - `!path` 是「认证墙」（仅对匿名生效）；顶层 `deny` 是任何人都不能访问
+   - 未命中任何规则 → 拒绝（fail closed）
 
 4. **Page Manager** (`internal/page.go`):
    - `PageDataMgr` is a global singleton
@@ -167,11 +169,16 @@ server:
   mode: debug  # debug mode: loads .local.yaml files, skips cache
 
 # Auth format: user:pass@path:perm,path2:perm2
-# @* = public access; :rw = read-write; :ro = read-only; ! = exclude
+# @... = 匿名规则（匿名基线）；:rw = 读写；:ro = 只读(默认)；:no = 拒绝
+# !path = 认证墙（仅匿名不可访问，登录后即可见）
 auths:
   - admin:admin123@*:rw
-  - user1:user123@/tools:rw,/*:ro
-  - "@*,!/inner*"  # public except /inner paths
+  # 读权限来自下面的匿名基线，无需再写 /*:ro
+  - user1:user123@/tools:rw
+  - "@*,!/inner*"
+
+# 硬拒绝：任何人都不能访问（含 admin）
+deny: []
 
 pages_dir: "./pages"
 frontend_dir: "./frontend/build"
@@ -219,15 +226,21 @@ services:
 
 ## API Endpoints
 
+实际注册的路由见 `main.go`（没有 `/api/health`、`/api/auth`）：
+
 | Endpoint | Auth | Description |
 |----------|------|-------------|
-| `GET /api/health` | No | Health check |
-| `GET /api/page[/{path}]` | Optional | Get page config (filtered by permissions) |
-| `GET /api/page/raw[/{path}]` | Yes | Get raw YAML content |
-| `POST /api/page/save` | Yes (rw) | Save YAML content |
-| `GET /api/auth` | No | Trigger browser auth dialog |
-| `GET /api/logout` | No | Clear browser auth (returns 401) |
-| `GET /icons-local/{path}` | No | Icon cache (downloads if missing) |
+| `GET /api/page[/{path}]` | Optional | 获取页面配置（导航按权限过滤，含 `can_write`） |
+| `GET /api/page[/{path}]?op=r` | ro | 获取整份原始 YAML |
+| `GET /api/page[/{path}]?op=blocks` | ro | 列出可单独编辑的块（分组 / 条目）及其源码行区间 |
+| `POST /api/page[/{path}]?op=w` | rw | 保存整份 YAML（先备份再原子写入） |
+| `POST /api/page[/{path}]?op=block` | rw | 修改单个块（`update` / `insert` / `delete`），只替换相关行 |
+| `POST /api/login` | No | UI 登录，成功设置会话 cookie |
+| `POST /api/logout` | No | 退出登录，清理会话与 cookie |
+| `GET /icons-local/{path}` | No | 图标本地缓存（缺失时按 `icons_cdn` 下载） |
+
+> 权限按页面路径判定：请求 `/api/page` 时会去掉该前缀再走 `Config.Resolve`。
+> 写操作（非 GET）一律要求已登录且具备 `rw`。
 
 ## Icon System
 
@@ -238,11 +251,16 @@ services:
 ## Themes
 
 Available themes (defined in `stores.js`):
+
 1. `ocean-depths` - 海洋深处 (default)
-2. `modern-minimalist` - 现代极简
-3. `midnight-galaxy` - 午夜星河
-4. `forest-canopy` - 森林树冠
-5. `arctic-frost` - 北极冰霜
+2. `tech-innovation` - 科技创新
+3. `modern-minimalist` - 现代极简
+4. `midnight-galaxy` - 午夜星河
+5. `forest-canopy` - 森林树冠
+6. `arctic-frost` - 北极冰霜
+
+主题只提供色值映射，组件一律使用**语义 token**（`--bg-deep` / `--ink` / `--accent` / `--surface` / `--border` 等），
+由 `stores.js::getThemeTokens()` 生成后在 `App.svelte` 注入。不要在组件里直接使用主题背景色当文字色。
 
 ## Gotchas
 

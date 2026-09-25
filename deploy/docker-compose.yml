@@ -1,14 +1,16 @@
-version: '3.8'
-
 services:
   homepagex:
-    build: .
+    # 构建上下文是仓库根目录（Dockerfile 在 deploy/ 下）
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
     container_name: homepagex
     ports:
-      - "8080:8080"
+      # 与 config.yaml 的 server.port 保持一致
+      - "8090:8090"
     volumes:
-      # 挂载页面配置目录，方便修改
-      - ./pages:/app/pages:ro
-      # 挂载配置文件
-      - ./config:/app/config:ro
+      # 页面配置目录。必须是可写（不要加 :ro），否则页面上的单块编辑 / 保存会失败
+      - ../pages:/app/pages
+      # 主配置文件只读挂载
+      - ../config.yaml:/app/config.yaml:ro
     restart: unless-stopped
