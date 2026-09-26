@@ -1,0 +1,53 @@
+name: Frontend-Build
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+  push:
+    branches: # Only trigger branch pushes; tag pushes are ignored.
+      - "**"
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend.yml"
+
+jobs:
+  build:
+    name: Build frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      # 必须在 setup-node 之前：cache: pnpm 需要 pnpm 已经可用
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # 与 frontend/pnpm-lock.yaml（lockfileVersion 9.0）保持一致
+          version: 12.5.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # --frozen-lockfile 顺带校验 package.json 与 lockfile 是否一致
+      - name: Install dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --dir frontend run build
+
+      # Go 服务端是从 frontend_dir（默认 ./frontend/build）读取产物的，
+      # 产物路径写错的话构建会「成功」但页面 404，所以这里显式校验一下
+      - name: Verify build output
+        run: |
+          test -f frontend/build/index.html
+          test -f frontend/build/bundle.js
+          test -f frontend/build/bundle.css
+          ls -lh frontend/build
