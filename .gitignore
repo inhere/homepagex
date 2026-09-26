@@ -25,6 +25,7 @@ yarn-error.log*
 frontend/build/
 frontend/public/build/
 dist/
+release/
 
 # IDE
 .idea/

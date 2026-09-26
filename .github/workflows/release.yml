@@ -1,0 +1,80 @@
+name: Tag-release
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release:
+    name: Release new version
+    runs-on: ubuntu-latest
+    # 前端构建 + 5 个平台交叉编译 + 归档，比纯 Go 项目慢，留足时间
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # git describe 生成版本号、chlog 取 prev/last 都需要完整历史与 tag
+          fetch-depth: 0
+
+      - name: Setup Go Faster
+        uses: WillAbides/setup-go-faster@v1.19.0
+        timeout-minutes: 3
+        with:
+          go-version: "1.25"
+
+      # 必须在 setup-node 之前：cache: pnpm 依赖 pnpm 已可用
+      # 版本与 frontend/pnpm-lock.yaml（lockfileVersion 9.0）保持一致
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.5.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Setup ENV
+        # https://docs.github.com/en/actions/reference/workflow-commands-for-github-actions#setting-an-environment-variable
+        run: |
+          echo "RELEASE_TAG=${GITHUB_REF:10}" >> $GITHUB_ENV
+          echo "RELEASE_NAME=$GITHUB_WORKFLOW" >> $GITHUB_ENV
+
+      - name: Mod tidy
+        run: |
+          go mod tidy
+
+      # make release = build-all + 打包：产物含二进制、config.yaml、pages、frontend/build
+      # （homepagex 从磁盘读取 frontend_dir / pages_dir，只有二进制跑不起来）
+      - name: Build release packages
+        run: |
+          make release
+
+      - name: Verify version flag
+        run: |
+          ./dist/homepagex-linux-amd64 -V
+
+      - name: Generate changelog
+        run: |
+          curl https://github.com/gookit/gitw/releases/latest/download/chlog-linux-amd64 -L -o /usr/local/bin/chlog
+          chmod a+x /usr/local/bin/chlog
+          chlog -c .github/changelog.yml -o changelog.md prev last
+
+      # https://github.com/softprops/action-gh-release
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          body_path: changelog.md
+          token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            release/*
+            dist/latest.yaml
