@@ -18,13 +18,16 @@ HomePageX is a lightweight Homer-like dashboard homepage built with **Go (backen
 go mod tidy
 
 # Run the server (uses config.yaml by default)
-go run main.go
+go run ./cmd/homepagex
 
 # Run with custom config
-go run main.go /path/to/config.yaml
+go run ./cmd/homepagex /path/to/config.yaml
 
-# Build binary
-go build -o homepagex
+# Build binary (or simply: make build)
+go build -o homepagex ./cmd/homepagex
+
+# Show version
+./homepagex -V
 
 # Run tests
 go test ./internal/...
@@ -54,22 +57,26 @@ pnpm run start
 ### Full Development
 
 1. Build frontend first: `cd frontend && pnpm run build`
-2. Run backend: `cd .. && go run main.go`
+2. Build & run backend: `make build && ./dist/homepagex`（或 `go run ./cmd/homepagex`）
 3. Access at: `http://localhost:8090`
 
 ## Project Structure
 
 ```
-go-homepagex/
-├── main.go              # Go entry point, route registration
+homepagex/
+├── cmd/homepagex/        # Go entry point, route registration
 ├── config.yaml          # Main server configuration
 ├── go.mod / go.sum      # Go dependencies
+├── Makefile             # build / cross-compile / release
 ├── internal/            # Backend code (internal package)
 │   ├── config.go        # Config loading and auth parsing
 │   ├── config_test.go   # Unit tests for config
-│   ├── auth.go          # Basic auth middleware
+│   ├── perm.go          # Permission model (Resolve / path rules / deny)
+│   ├── auth.go          # Session login and auth middleware
 │   ├── handlers.go      # HTTP handlers (API endpoints)
 │   ├── page.go          # Page config parsing and caching
+│   ├── blocks.go        # Single-block editing by source line range
+│   ├── file.go          # Atomic write / backup / path guard
 │   ├── server.go        # Server struct and utilities
 │   ├── types.go         # DTO types (LoginInfo, PageDataResponse)
 │   ├── init.go          # PageDataManager initialization
@@ -97,7 +104,7 @@ go-homepagex/
 
 ### Backend (Go)
 
-- **Entry Point**: `main.go` registers routes on `http.ServeMux`
+- **Entry Point**: `cmd/homepagex/main.go` registers routes on `http.ServeMux`
 - **Package**: All backend code is in `internal` package (imported as `github.com/inhere/homepagex/internal`)
 - **Server**: Simple `http.ServeMux` based server (no framework)
 - **Config**: YAML-based configuration with `goccy/go-yaml`
@@ -226,7 +233,7 @@ services:
 
 ## API Endpoints
 
-实际注册的路由见 `main.go`（没有 `/api/health`、`/api/auth`）：
+实际注册的路由见 `cmd/homepagex/main.go`（没有 `/api/health`、`/api/auth`）：
 
 | Endpoint | Auth | Description |
 |----------|------|-------------|

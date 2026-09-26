@@ -29,21 +29,24 @@ wget https://github.com/inhere/go-homepagex/releases/latest/download/homepagex-l
 ## 项目结构
 
 ```txt
-go-homepagex/
-├── internal/          # Go 后端服务
-│   ├── config.go     # 配置加载
-│   ├── page.go       # 页面配置解析
-│   ├── auth.go       # Basic 认证
-│   └── handlers.go   # HTTP 处理器
-├── frontend/         # 前端应用
-│   └── build/        # 构建输出
-│       ├── index.html
-│       └── app.js
+homepagex/
+├── cmd/homepagex/    # Go 入口（路由注册）
+├── internal/         # Go 后端服务
+│   ├── config.go     # 配置加载与认证规则解析
+│   ├── perm.go       # 权限模型（Resolve 统一鉴权）
+│   ├── auth.go       # 登录会话与认证中间件
+│   ├── page.go       # 页面配置解析与缓存
+│   ├── blocks.go     # 按源码行区间做单块编辑
+│   ├── file.go       # 原子写入 / 备份 / 路径校验
+│   ├── handlers.go   # HTTP 处理器
+│   └── util.go       # 工具函数（Content-Type、图标下载）
+├── frontend/         # Svelte 前端
+│   └── build/        # 构建输出（由 Go 服务端提供）
 ├── pages/            # 页面 YAML 配置
-│   ├── home.yaml     # 主页面配置
-│   └── another.yaml
-├── config.yaml   # 后端配置
-├── main.go       # Go 入口文件
+├── deploy/           # Docker 部署文件
+├── docs/             # 项目文档
+├── Makefile          # 构建 / 交叉编译 / 发布
+├── config.yaml       # 后端配置
 └── README.md
 ```
 
@@ -154,29 +157,47 @@ services:
 
 ### 1. 安装依赖
 
-**Go (1.21+)**:
+**Go (1.24+)** 与 **Node + pnpm**（构建前端需要）:
+
 ```bash
-# 下载并安装 Go
-wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.21.6.linux-amd64.tar.gz
+# 安装 Go
+wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.24.0.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin
+
+# 安装 pnpm
+npm install -g pnpm
 ```
 
-### 2. 编译后端
+### 2. 构建
+
+推荐直接用 Makefile（会先构建前端，二进制输出到 `dist/`）：
 
 ```bash
+make build       # 构建当前平台
+make build-all   # 交叉编译所有平台
+make release     # 生成发布包（含 frontend/build、pages、config.yaml）
+```
+
+也可以手动构建：
+
+```bash
+cd frontend && pnpm install && pnpm run build && cd ..
 go mod tidy
-go build -o homepagex
+go build -o homepagex ./cmd/homepagex
 ```
 
 ### 3. 运行
 
 ```bash
-# 使用默认配置
+# 使用默认配置（当前目录需要有 config.yaml、pages/、frontend/build）
 ./homepagex
 
 # 或使用自定义配置文件
 ./homepagex /path/to/config.yaml
+
+# 查看版本
+./homepagex -V
 ```
 
 ### 4. 访问

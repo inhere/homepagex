@@ -15,18 +15,20 @@ HomePageX is a lightweight Homer-like dashboard homepage built with **Go (backen
 ### Full Development
 
 1. Build frontend first: `cd frontend && pnpm run build`
-2. Run backend: `cd .. && go run main.go`
+2. Build & run backend: `make build && ./dist/homepagex`（或 `go run ./cmd/homepagex`）
 3. Access at: `http://localhost:8090`
+
+> 入口在 `cmd/homepagex/`，不在仓库根目录。
 
 ## Architecture
 
 ### Backend (Go)
 
-- **Entry Point**: `main.go` registers routes on `http.ServeMux`
+- **Entry Point**: `cmd/homepagex/main.go` registers routes on `http.ServeMux`
 - **Package**: All backend code is in `internal` package (imported as `github.com/inhere/homepagex/internal`)
 - **Server**: Simple `http.ServeMux` based server (no framework)
 - **Config**: YAML-based configuration with `goccy/go-yaml`
-- **Auth**: Custom Basic Auth with path-based permission system
+- **Auth**: 基于路径规则的权限系统，统一走 `Config.Resolve(username, path, isWrite)`（`internal/perm.go`）
 
 ### Frontend (Svelte)
 

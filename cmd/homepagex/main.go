@@ -9,9 +9,25 @@ import (
 	"github.com/inhere/homepagex/internal"
 )
 
+// 构建信息，由 Makefile / CI 通过 -ldflags -X main.xxx 注入
+var (
+	Version   = "dev"
+	GitCommit = "unknown"
+	BuildDate = "unknown"
+)
+
 var server *internal.Server
 
 func main() {
+	// 版本查询：./homepagex -V
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "-v", "-V", "--version", "version":
+			fmt.Printf("homepagex %s (commit %s, built %s)\n", Version, GitCommit, BuildDate)
+			return
+		}
+	}
+
 	// 默认配置文件路径
 	configPath := "config.yaml"
 	if len(os.Args) > 1 {
