@@ -24,7 +24,7 @@ jobs:
 
       # 必须在 setup-node 之前：cache: pnpm 需要 pnpm 已经可用
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           # 与 frontend/pnpm-lock.yaml（lockfileVersion 9.0）保持一致
           version: 12.5.1
