@@ -10,7 +10,7 @@ Guide for AI agents working in the HomePageX codebase.
 
 HomePageX is a lightweight Homer-like dashboard homepage built with **Go (backend)** + **Svelte (frontend)**. It provides:
 
-> 更多请查看 [project.md](project.md)
+> 更多请查看 [project.md](docs/project.md)
 
 ### Full Development
 
