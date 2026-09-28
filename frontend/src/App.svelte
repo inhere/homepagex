@@ -8,7 +8,7 @@
   import YamlEditor from './components/YamlEditor.svelte';
   import BlockEditor from './components/BlockEditor.svelte';
   import LoginModal from './components/LoginModal.svelte';
-  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens } from './stores.js';
+  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens, userInfo } from './stores.js';
 
   let loading = true;
   let error = null;
