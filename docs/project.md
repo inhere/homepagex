@@ -29,6 +29,13 @@ go build -o homepagex ./cmd/homepagex
 # Show version
 ./homepagex -V
 
+# Override listen address / run mode
+./homepagex --addr :9090
+./homepagex -mode debug
+
+# Show help
+./homepagex -h
+
 # Run tests
 go test ./internal/...
 

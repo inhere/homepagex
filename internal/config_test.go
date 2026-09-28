@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gookit/goutil/testutil/assert"
@@ -286,4 +288,43 @@ func TestIsNeedAuth(t *testing.T) {
 	assert.True(t, c.IsNeedAuth("/inner-tools", false))
 	// 匿名：写操作一律需要登录（即使基线是只读）
 	assert.True(t, c.IsNeedAuth("/", true))
+}
+
+// 读不到配置文件时必须返回一份「可用的」默认配置而不是 nil，
+// 否则调用方（main）会对着 nil 取字段，直接 panic
+func TestLoadConfigMissingFileUsesDefaults(t *testing.T) {
+	cfg, err := LoadConfig(filepath.Join(t.TempDir(), "not-exist.yaml"))
+
+	assert.Err(t, err)
+	if cfg == nil {
+		t.Fatal("读不到文件时应返回默认配置，而不是 nil")
+	}
+
+	assert.Eq(t, "8090", cfg.Server.Port)
+	assert.Eq(t, "./pages", cfg.PagesDir)
+	assert.Eq(t, "./frontend/build", cfg.FrontendDir)
+
+	// 默认配置是「匿名只读」，必须真的可用（auths 已解析）
+	assert.True(t, cfg.Resolve("", "/", false).Allowed)
+	assert.False(t, cfg.Resolve("", "/", true).Allowed)
+}
+
+// 文件存在但内容非法时必须返回 nil + err，让调用方直接失败，
+// 而不是带着一份与用户预期不符的配置静默启动
+func TestLoadConfigInvalidFileReturnsNil(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bad.yaml")
+	assert.NoErr(t, os.WriteFile(path, []byte("auths:\n  - \"user:pass@/a:readonly\"\n"), 0o644))
+
+	cfg, err := LoadConfig(path)
+
+	assert.Err(t, err)
+	assert.Nil(t, cfg)
+}
+
+func TestDefaultConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	assert.Eq(t, "8090", cfg.Server.Port)
+	assert.True(t, cfg.Resolve("", "/anything", false).Allowed)
+	assert.False(t, cfg.Resolve("", "/anything", true).Allowed)
 }

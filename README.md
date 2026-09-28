@@ -193,12 +193,31 @@ go build -o homepagex ./cmd/homepagex
 # 使用默认配置（当前目录需要有 config.yaml、pages/、frontend/build）
 ./homepagex
 
-# 或使用自定义配置文件
+# 指定配置文件（-c/--config 或直接跟位置参数都可以）
+./homepagex -c /path/to/config.yaml
 ./homepagex /path/to/config.yaml
 
-# 查看版本
+# 覆盖监听地址 / 运行模式
+./homepagex --addr :9090
+./homepagex -mode debug
+
+# 查看版本与帮助
 ./homepagex -V
+./homepagex -h
 ```
+
+命令行选项：
+
+| 选项 | 说明 |
+|------|------|
+| `-c`, `--config` | 配置文件路径（默认 `config.yaml`） |
+| `--addr` | 监听地址，覆盖配置里的 `server.port`，如 `:9090` |
+| `-mode` | 覆盖 `server.mode`（`debug` / `release`） |
+| `-V`, `-v`, `-version` | 打印版本后退出 |
+| `-h` | 打印帮助 |
+
+> 配置文件读不到时会回退到内置默认配置（匿名只读、`./pages`、`./frontend/build`）；
+> 文件存在但内容非法（如权限后缀写错）会直接报错退出，不会静默带错配置启动。
 
 ### 4. 访问
 

@@ -88,15 +88,28 @@ func newDefaultConfig() *Config {
 	}
 }
 
-// LoadConfig 从 YAML 文件加载配置
-func LoadConfig(path string) (*Config, error) {
-	// 加载默认配置
+// DefaultConfig 返回一份内置的默认配置（不读文件），用于配置文件缺失时的兜底。
+func DefaultConfig() *Config {
 	config := newDefaultConfig()
+	// 默认 auths 是写死的 "@*"，parseAuths 不可能失败
+	_ = config.parseAuths()
+	return config
+}
+
+// LoadConfig 从 YAML 文件加载配置。
+//
+// 返回约定：
+//   - 文件不存在/读不到：返回「默认配置 + err」，调用方可选择兜底继续运行
+//   - 文件存在但解析或校验失败：返回「nil + err」，调用方应当直接失败
+//     （否则会带着一份与用户预期不符的配置静默启动）
+func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
+		return DefaultConfig(), fmt.Errorf("failed to read config file: %w", err)
 	}
 
+	// 加载默认配置后再叠加文件内容
+	config := newDefaultConfig()
 	if err = yaml.Unmarshal(data, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
