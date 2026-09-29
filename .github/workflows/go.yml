@@ -18,6 +18,9 @@ jobs:
     name: Test on go ${{ matrix.go_version }} and ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      # 某个平台失败时不要取消其它平台。fail-fast 默认是 true，会让同组 job 全部显示 X，
+      # 容易把「一个根因」误读成「多个平台都挂了」（我就这样误判过一次）
+      fail-fast: false
       matrix:
         go_version: [1.25, stable]
         os: [ubuntu-latest, windows-latest]
