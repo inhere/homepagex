@@ -8,7 +8,7 @@
   import YamlEditor from './components/YamlEditor.svelte';
   import BlockEditor from './components/BlockEditor.svelte';
   import LoginModal from './components/LoginModal.svelte';
-  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens, userInfo, colorMode } from './stores.js';
+  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens, userInfo, colorMode, searchQuery } from './stores.js';
 
   // loading: 是否正在请求；booted: 是否已完成首次加载。
   // 只有首次加载才显示整页 Loading —— 切换页面时若把 Header/Navbar/Toolbar 一起
@@ -18,7 +18,6 @@
   // loadSeq: 请求序号，避免快速切换时「先发的慢响应」覆盖后发的页面
   let loadSeq = 0;
   let error = null;
-  let searchQuery = '';
   let selectedTag = '';
   // 初值由下面的响应式块统一赋值，这里不需要再给一次
   let filteredServices;
@@ -152,8 +151,8 @@
 
     let result = baseServices;
 
-    if (searchQuery.length > 1) {
-      const keywords = searchQuery.split(/\s+/).filter(k => k.length > 0);
+    if ($searchQuery.length > 1) {
+      const keywords = $searchQuery.split(/\s+/).filter(k => k.length > 0);
       result = result.map(service => ({
         ...service,
         items: (service.items || []).filter(item => {
@@ -243,7 +242,8 @@
       pageConfig.set(result.data);
       userInfo.set(result.data.user_info || null);
       // 新页面数据已就绪，这时再重置过滤条件
-      searchQuery = '';
+      // （搜索框与这里共用同一个 store，所以会一起清空）
+      searchQuery.set('');
       selectedTag = '';
       if (!localStorage.getItem('viewStyle')) {
         viewStyle.set(result.data.style || 'cards');
@@ -288,10 +288,6 @@
       window.removeEventListener('popstate', loadConfig);
     };
   });
-
-  function handleSearch(query) {
-    searchQuery = query;
-  }
 
   function handleSelectTag(tag) {
     selectedTag = tag;
@@ -367,7 +363,6 @@
       {/if}
 
       <Toolbar
-        onSearch={handleSearch}
         onOpenEditor={openYamlEditor}
         onAddService={openNewService}
         mode={effectiveMode}

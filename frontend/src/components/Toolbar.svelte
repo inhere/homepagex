@@ -1,11 +1,9 @@
 <script>
-  import { viewStyle, themes, currentTheme, pageConfig, colorMode, COLOR_MODES, themeSwatch } from '../stores.js';
+  import { viewStyle, themes, currentTheme, pageConfig, colorMode, COLOR_MODES, themeSwatch, searchQuery } from '../stores.js';
 
-  export let onSearch = () => {};
   export let onOpenEditor = () => {};
   export let onAddService = () => {};
 
-  let searchQuery = '';
   let showThemeDropdown = false;
 
   $: currentThemeName = themes.find(t => t.id === $currentTheme)?.name || '默认主题';
@@ -14,13 +12,11 @@
   export let mode = 'dark';
 
   function handleSearch(event) {
-    searchQuery = event.target.value;
-    onSearch(searchQuery);
+    searchQuery.set(event.target.value);
   }
 
   function clearSearch() {
-    searchQuery = '';
-    onSearch('');
+    searchQuery.set('');
   }
 
   function toggleStyle() {
@@ -58,10 +54,10 @@
       type="text"
       class="search-input"
       placeholder="搜索服务..."
-      value={searchQuery}
+      value={$searchQuery}
       on:input={handleSearch}
     />
-    {#if searchQuery}
+    {#if $searchQuery}
       <button class="clear-btn" on:click={clearSearch} title="清除">
         <i class="fas fa-times"></i>
       </button>

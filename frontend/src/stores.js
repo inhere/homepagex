@@ -19,6 +19,11 @@ function createPersistedStore(key, initialValue) {
 
 export const viewStyle = createPersistedStore('viewStyle', 'cards');
 
+// 搜索关键词：App（过滤数据）与 Toolbar（输入框）共用同一个来源。
+// 之前两处各存一份，App 切页时会清空自己的、输入框里的文字却还在，
+// 看起来像「输入了关键词但搜索失效」。
+export const searchQuery = writable('');
+
 // 色彩模式：light 亮色 / dark 暗色 / system 跟随系统（默认）
 export const colorMode = createPersistedStore('colorMode', 'system');
 
