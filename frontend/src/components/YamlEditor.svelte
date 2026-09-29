@@ -214,7 +214,7 @@
     background: radial-gradient(
       circle at top,
       var(--accent-soft, rgba(255, 255, 255, 0.05)),
-      rgba(0, 0, 0, 0.78)
+      var(--scrim)
     );
     backdrop-filter: blur(8px);
     display: flex;
@@ -232,7 +232,7 @@
   }
 
   .modal-container {
-    background: rgba(12, 18, 30, 0.98);
+    background: var(--panel);
     border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
     border-radius: 12px;
     width: 100%;
@@ -241,7 +241,7 @@
     max-height: 95vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 20px 60px var(--shadow-strong);
   }
 
   .modal-header {
@@ -249,7 +249,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom: 1px solid var(--border);
   }
 
   .modal-title {
@@ -259,7 +259,7 @@
     margin: 0;
     font-size: 1.3rem;
     font-weight: 600;
-    color: #e4e4e4;
+    color: var(--ink);
   }
 
   .modal-title i {
@@ -272,10 +272,10 @@
     justify-content: center;
     width: 36px;
     height: 36px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-muted);
     cursor: pointer;
     transition: all 0.2s ease;
   }
@@ -283,7 +283,7 @@
   .close-btn:hover {
     background: rgba(255, 107, 107, 0.2);
     border-color: rgba(255, 107, 107, 0.3);
-    color: #ff6b6b;
+    color: var(--danger-ink);
   }
 
   .modal-body {
@@ -317,7 +317,7 @@
     margin: 0 0 12px 0;
     font-size: 0.95rem;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--ink);
   }
 
   .section-title i {
@@ -339,10 +339,10 @@
     width: 100%;
     min-height: 200px;
     padding: 16px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: #e4e4e4;
+    color: var(--ink);
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 0.9rem;
     line-height: 1.6;
@@ -359,7 +359,7 @@
   }
 
   .yaml-editor::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--ink-faint);
   }
 
   .loading-placeholder {
@@ -370,10 +370,10 @@
     justify-content: center;
     gap: 12px;
     min-height: 200px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
   }
 
   .loading-placeholder i {
@@ -388,7 +388,7 @@
     background: rgba(255, 107, 107, 0.1);
     border: 1px solid rgba(255, 107, 107, 0.3);
     border-radius: 8px;
-    color: #ff6b6b;
+    color: var(--danger-ink);
     font-size: 0.9rem;
   }
 
@@ -398,7 +398,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 20px 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid var(--border);
   }
 
   .btn {
@@ -406,7 +406,7 @@
     align-items: center;
     gap: 8px;
     padding: 10px 20px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 0.9rem;
     font-weight: 500;
@@ -420,12 +420,12 @@
   }
 
   .btn-cancel {
-    background: rgba(255, 255, 255, 0.05);
-    color: rgba(255, 255, 255, 0.8);
+    background: var(--surface);
+    color: var(--ink);
   }
 
   .btn-cancel:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-hover);
   }
 
   .btn-save {

@@ -111,7 +111,7 @@
     inset: 0;
     background:
       radial-gradient(circle at top, var(--accent-soft, rgba(168, 218, 220, 0.35)), transparent 55%),
-      rgba(0, 0, 0, 0.6);
+      var(--scrim);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -121,11 +121,11 @@
   .modal {
     width: 100%;
     max-width: 420px;
-    background: rgba(12, 18, 30, 0.97);
+    background: var(--panel);
     border-radius: 16px;
     padding: 24px 24px 20px;
     border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
-    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 18px 45px var(--shadow-strong);
     backdrop-filter: blur(16px);
     color: var(--ink, #f5f5f5);
   }
@@ -137,7 +137,7 @@
 
   .modal-subtitle {
     font-size: 0.9rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-muted);
     margin-bottom: 18px;
   }
 
@@ -155,28 +155,28 @@
   }
 
   .field span {
-    color: rgba(255, 255, 255, 0.85);
+    color: var(--ink);
   }
 
   .field input {
     padding: 9px 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(5, 10, 25, 0.9);
-    color: #f5f5f5;
+    border: 1px solid var(--border);
+    background: var(--panel-inset);
+    color: var(--ink);
     outline: none;
     font-size: 0.95rem;
     transition: border 0.2s, box-shadow 0.2s, background 0.2s;
   }
 
   .field input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-faint);
   }
 
   .field input:focus {
     border-color: var(--accent, #a8dadc);
     box-shadow: 0 0 0 1px var(--accent-soft, rgba(168, 218, 220, 0.4));
-    background: rgba(5, 10, 25, 1);
+    background: var(--panel-inset);
   }
 
   .error {
@@ -184,7 +184,7 @@
     padding: 8px 10px;
     border-radius: 8px;
     background: rgba(220, 53, 69, 0.12);
-    color: #ffb4b8;
+    color: var(--danger-ink);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -230,12 +230,12 @@
 
   .btn.secondary {
     background: transparent;
-    border-color: rgba(255, 255, 255, 0.3);
-    color: rgba(255, 255, 255, 0.9);
+    border-color: var(--border-strong);
+    color: var(--ink);
   }
 
   .btn.secondary:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--surface);
   }
 
   .btn:disabled {

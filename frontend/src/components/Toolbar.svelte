@@ -1,5 +1,5 @@
 <script>
-  import { viewStyle, themes, currentTheme, pageConfig } from '../stores.js';
+  import { viewStyle, themes, currentTheme, pageConfig, colorMode, COLOR_MODES, themeSwatch } from '../stores.js';
 
   export let onSearch = () => {};
   export let onOpenEditor = () => {};
@@ -10,11 +10,8 @@
 
   $: currentThemeName = themes.find(t => t.id === $currentTheme)?.name || '默认主题';
 
-  // 主题预览色：用「背景色 → 强调色」最能体现主题观感
-  function themeSwatch(themeId) {
-    const theme = themes.find(t => t.id === themeId) || themes[0];
-    return `linear-gradient(135deg, ${theme.colors[0]}, ${theme.colors[2]})`;
-  }
+  // 当前生效的明暗：由 App 传入（system 已在 App 侧解析成 light/dark）
+  export let mode = 'dark';
 
   function handleSearch(event) {
     searchQuery = event.target.value;
@@ -72,6 +69,22 @@
   </div>
 
   <div class="toolbar-actions">
+    <!-- 色彩模式：亮 / 暗 / 系统（放在主题选择前面） -->
+    <div class="mode-selector" role="group" aria-label="色彩模式">
+      {#each COLOR_MODES as m (m.id)}
+        <button
+          type="button"
+          class="mode-btn"
+          class:active={$colorMode === m.id}
+          title={m.name}
+          on:click|stopPropagation={() => colorMode.set(m.id)}
+        >
+          <i class={m.icon}></i>
+          <span>{m.name}</span>
+        </button>
+      {/each}
+    </div>
+
     <div class="theme-selector">
       <button
         class="theme-btn"
@@ -79,7 +92,7 @@
       >
         <div
           class="theme-indicator"
-          style="background: {themeSwatch($currentTheme)}"
+          style="background: {themeSwatch($currentTheme, mode)}"
         ></div>
         <span class="theme-name">{currentThemeName}</span>
         <i class="fas fa-chevron-down" class:open={showThemeDropdown}></i>
@@ -95,7 +108,7 @@
             >
               <div
                 class="theme-preview"
-                style="background: {themeSwatch(theme.id)}"
+                style="background: {themeSwatch(theme.id, mode)}"
               ></div>
               <span>{theme.name}</span>
               {#if $currentTheme === theme.id}
@@ -140,19 +153,19 @@
     align-items: center;
     gap: 10px;
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
     border-radius: 8px;
     transition: all 0.3s ease;
   }
 
   .search-box:focus-within {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--surface-hover);
     border-color: var(--accent-soft);
   }
 
   .search-box i {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
     font-size: 0.9rem;
   }
 
@@ -161,18 +174,18 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #e4e4e4;
+    color: var(--ink);
     font-size: 0.95rem;
   }
 
   .search-input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-faint);
   }
 
   .clear-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
     cursor: pointer;
     padding: 4px;
     display: flex;
@@ -182,13 +195,45 @@
   }
 
   .clear-btn:hover {
-    color: #e4e4e4;
+    color: var(--ink);
   }
 
   .toolbar-actions {
     display: flex;
     align-items: center;
     gap: 12px;
+  }
+
+  .mode-selector {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--surface, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 10px;
+  }
+
+  .mode-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink-muted, rgba(255, 255, 255, 0.7));
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .mode-btn:hover {
+    color: var(--ink, #ffffff);
+  }
+
+  .mode-btn.active {
+    background: var(--accent-soft, rgba(168, 218, 220, 0.16));
+    color: var(--accent, #a8dadc);
   }
 
   .theme-selector {
@@ -200,17 +245,17 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: #e4e4e4;
+    color: var(--ink);
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 0.9rem;
   }
 
   .theme-btn:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--surface-hover);
   }
 
   .theme-indicator {
@@ -238,8 +283,8 @@
     top: 100%;
     right: 0;
     margin-top: 8px;
-    background: rgba(30, 30, 50, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--menu);
+    border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
     z-index: 1000;
@@ -257,13 +302,13 @@
     border: none;
     cursor: pointer;
     text-align: left;
-    color: #e4e4e4;
+    color: var(--ink);
     font-size: 0.9rem;
     transition: background 0.2s;
   }
 
   .theme-option:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-hover);
   }
 
   .theme-option.active {
@@ -288,17 +333,17 @@
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    color: #e4e4e4;
+    color: var(--ink);
     cursor: pointer;
     transition: all 0.3s ease;
     font-size: 0.9rem;
   }
 
   .style-toggle:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
     transform: translateY(-2px);
   }
 
@@ -308,9 +353,9 @@
     gap: 6px;
     padding: 9px 16px;
     border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    background: rgba(255, 255, 255, 0.1);
-    color: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-hover);
+    color: var(--ink);
     font-size: 0.9rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -327,6 +372,14 @@
   }
 
   @media (max-width: 768px) {
+    .mode-btn span {
+      display: none;
+    }
+
+    .mode-btn {
+      padding: 6px 8px;
+    }
+
     .toolbar {
       flex-direction: column;
     }

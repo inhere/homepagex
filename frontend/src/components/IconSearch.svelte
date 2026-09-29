@@ -278,8 +278,8 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
     transition: all 0.3s ease;
   }
@@ -287,15 +287,15 @@
   .source-toggle {
     display: inline-flex;
     padding: 2px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--surface);
     border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border);
   }
 
   .source-btn {
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-muted);
     font-size: 0.75rem;
     padding: 6px 10px;
     border-radius: 999px;
@@ -305,21 +305,21 @@
   }
 
   .source-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-hover);
   }
 
   .source-btn.active {
     background: var(--accent, #4a9eff);
-    color: #08131f;
+    color: var(--accent-ink);
   }
 
   .search-input-wrapper:focus-within {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-hover);
     border-color: var(--accent, #4a9eff);
   }
 
   .search-input-wrapper i {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
     font-size: 0.9rem;
   }
 
@@ -328,12 +328,12 @@
     background: transparent;
     border: none;
     outline: none;
-    color: #e4e4e4;
+    color: var(--ink);
     font-size: 0.9rem;
   }
 
   .search-input::placeholder {
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--ink-faint);
   }
 
   .icon-grid-container {
@@ -356,8 +356,8 @@
     align-items: center;
     gap: 6px;
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -366,7 +366,7 @@
   }
 
   .icon-card:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--surface-hover);
     border-color: var(--accent, #4a9eff);
     transform: translateY(-2px);
   }
@@ -381,7 +381,7 @@
 
   .icon-name {
     font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--ink-muted);
     text-align: center;
     word-break: break-word;
     line-height: 1.2;
@@ -402,7 +402,7 @@
     justify-content: center;
     gap: 12px;
     padding: 40px 20px;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
   }
 
   .loading-state i,
@@ -412,7 +412,7 @@
   }
 
   .error-state {
-    color: #ff6b6b;
+    color: var(--danger-ink);
   }
 
   .icon-grid-container::-webkit-scrollbar {
@@ -420,16 +420,16 @@
   }
 
   .icon-grid-container::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface);
     border-radius: 3px;
   }
 
   .icon-grid-container::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--surface-hover);
     border-radius: 3px;
   }
 
   .icon-grid-container::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--surface-hover);
   }
 </style>

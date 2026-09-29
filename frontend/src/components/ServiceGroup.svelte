@@ -54,7 +54,7 @@
 
   .service-group:hover {
     transform: translateY(-4px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 20px 40px var(--shadow);
   }
 
   .group-header {
@@ -101,9 +101,9 @@
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.06);
-    color: rgba(255, 255, 255, 0.8);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
     font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.2s ease;

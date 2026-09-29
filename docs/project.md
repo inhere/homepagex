@@ -274,7 +274,20 @@ Available themes (defined in `stores.js`):
 6. `arctic-frost` - 北极冰霜
 
 主题只提供色值映射，组件一律使用**语义 token**（`--bg-deep` / `--ink` / `--accent` / `--surface` / `--border` 等），
-由 `stores.js::getThemeTokens()` 生成后在 `App.svelte` 注入。不要在组件里直接使用主题背景色当文字色。
+由 `stores.js::getThemeTokens()` 生成后写入 `documentElement`（body 在 `.theme-wrapper` 之外，
+只挂 wrapper 的话 body 取不到主题色）。不要在组件里直接使用主题背景色当文字色，
+也不要在组件里硬编码颜色 —— 否则亮色模式下会出现「白字压白底」。
+
+### 色彩模式（亮 / 暗 / 系统）
+
+色彩模式与主题正交，两者可任意组合：
+
+- `stores.js::colorMode`（localStorage 持久化）取值 `light` / `dark` / `system`，默认 `system`
+- `system` 时由 `App.svelte` 通过 `matchMedia('(prefers-color-scheme: dark)')` 解析出实际明暗，
+  并设置 `color-scheme` 让原生控件（滚动条、下拉）跟随
+- `getThemeTokens(themeId, mode)` 在 `light` 模式下由主题色**派生**亮色 token：
+  浅底（强调色混白）、深字（背景色加深）、加深的强调色；6 个主题因此都自动支持亮色，
+  无需维护两套色板。某个主题若需要更精细的亮色，可在 `themes` 里为它显式指定 `lightColors` 覆盖
 
 ## Gotchas
 

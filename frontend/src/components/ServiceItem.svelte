@@ -175,9 +175,9 @@
     width: 28px;
     height: 28px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(10, 16, 28, 0.75);
-    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid var(--border);
+    background: var(--overlay-strong);
+    color: var(--ink);
     font-size: 0.75rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -191,7 +191,7 @@
 
   .act-btn.danger:hover {
     background: rgba(220, 53, 69, 0.22);
-    color: #ff9aa2;
+    color: var(--danger-ink);
     border-color: rgba(220, 53, 69, 0.6);
   }
 
@@ -347,7 +347,7 @@
     align-items: center;
     gap: 8px;
     flex: 1;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--code-bg);
     padding: 6px 10px;
     border-radius: 6px;
   }
@@ -355,7 +355,7 @@
   .url-text {
     flex: 1;
     font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -364,7 +364,7 @@
   .copy-btn {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ink-soft);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
@@ -396,8 +396,8 @@
     max-width: 260px;
     padding: 6px 10px;
     border-radius: 8px;
-    background: rgba(0, 0, 0, 0.22);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
   }
 
   .tag {

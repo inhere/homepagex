@@ -524,10 +524,10 @@
     display: flex;
     flex-direction: column;
     border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    background: linear-gradient(150deg, rgba(16, 22, 36, 0.98), rgba(8, 12, 22, 0.98));
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
-    color: #f1f5f9;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    box-shadow: 0 24px 60px var(--shadow-strong);
+    color: var(--ink);
   }
 
   .modal-head {
@@ -536,7 +536,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 16px 20px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--border);
   }
 
   .modal-head h2 {
@@ -565,9 +565,9 @@
     gap: 6px;
     padding: 7px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    background: rgba(255, 255, 255, 0.06);
-    color: #e2e8f0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
     font-size: 0.85rem;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -575,7 +575,7 @@
 
   .view-toggle:hover:not(:disabled),
   .icon-btn:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--surface-hover);
   }
 
   .view-toggle:disabled {
@@ -604,7 +604,7 @@
     flex-direction: column;
     gap: 6px;
     font-size: 0.85rem;
-    color: rgba(255, 255, 255, 0.75);
+    color: var(--ink-muted);
   }
 
   .field.wide {
@@ -615,9 +615,9 @@
   .field select {
     padding: 9px 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(4, 8, 18, 0.85);
-    color: #f1f5f9;
+    border: 1px solid var(--border);
+    background: var(--panel-inset);
+    color: var(--ink);
     font-size: 0.9rem;
     outline: none;
     transition: border 0.2s, box-shadow 0.2s;
@@ -630,7 +630,7 @@
   }
 
   .icon-picker {
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--border);
     padding-top: 12px;
     max-height: 210px;
     display: flex;
@@ -643,9 +643,9 @@
     flex: 1;
     padding: 12px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(0, 0, 0, 0.35);
-    color: #e2e8f0;
+    border: 1px solid var(--border);
+    background: var(--code-bg);
+    color: var(--ink);
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 0.85rem;
     line-height: 1.55;
@@ -661,7 +661,7 @@
   .hint {
     margin: 0;
     font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--ink-soft);
   }
 
   .hint {
@@ -680,7 +680,7 @@
     border-radius: 8px;
     background: rgba(220, 53, 69, 0.14);
     border: 1px solid rgba(220, 53, 69, 0.35);
-    color: #ffb4b8;
+    color: var(--danger-ink);
     font-size: 0.85rem;
   }
 
@@ -690,7 +690,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 14px 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid var(--border);
   }
 
   .foot-right {
@@ -705,16 +705,16 @@
     gap: 6px;
     padding: 9px 16px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    background: rgba(255, 255, 255, 0.06);
-    color: #e2e8f0;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--ink);
     font-size: 0.88rem;
     cursor: pointer;
     transition: all 0.2s ease;
   }
 
   .btn:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--surface-hover);
   }
 
   .btn:disabled {
@@ -725,13 +725,13 @@
   .btn.primary {
     background: var(--accent, #2d8b8b);
     border-color: var(--accent, #2d8b8b);
-    color: #08131f;
+    color: var(--accent-ink);
     font-weight: 600;
   }
 
   .btn.danger {
     border-color: rgba(220, 53, 69, 0.5);
-    color: #ff9aa2;
+    color: var(--danger-ink);
     background: transparent;
   }
 

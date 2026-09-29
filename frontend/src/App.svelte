@@ -8,7 +8,7 @@
   import YamlEditor from './components/YamlEditor.svelte';
   import BlockEditor from './components/BlockEditor.svelte';
   import LoginModal from './components/LoginModal.svelte';
-  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens, userInfo } from './stores.js';
+  import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens, userInfo, colorMode } from './stores.js';
 
   let loading = true;
   let error = null;
@@ -74,10 +74,36 @@
     }
   }
 
+  // 色彩模式为 system 时，实际采用系统偏好
+  let systemPrefersDark = true;
+
+  $: effectiveMode = $colorMode === 'system'
+    ? (systemPrefersDark ? 'dark' : 'light')
+    : $colorMode;
+
   // 主题只提供色值映射，组件一律使用语义 token（--ink / --accent / --surface ...）
-  $: themeVars = Object.entries(getThemeTokens($currentTheme))
+  $: themeVars = Object.entries(getThemeTokens($currentTheme, effectiveMode))
     .map(([k, v]) => `${k}: ${v};`)
     .join('');
+
+  // token 写到 documentElement（而非只挂在 .theme-wrapper 上）：
+  // body 在 wrapper 之外，只挂 wrapper 的话 body 拿不到主题色，
+  // 亮色模式下 overscroll 会露出 :root 里的深色兜底
+  $: applyThemeTokens(getThemeTokens($currentTheme, effectiveMode), effectiveMode);
+
+  function applyThemeTokens(tokens, mode) {
+    if (typeof document === 'undefined' || !document.documentElement) {
+      return;
+    }
+
+    const root = document.documentElement;
+    // 让原生控件（滚动条、select 下拉、日期选择器等）跟随明暗
+    root.style.colorScheme = mode;
+
+    for (const [key, value] of Object.entries(tokens)) {
+      root.style.setProperty(key, value);
+    }
+  }
 
   function matchesAllKeywords(text, keywords) {
     if (!keywords.length) return true;
@@ -217,12 +243,21 @@
   }
 
   onMount(() => {
+    // 跟随系统明暗
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    systemPrefersDark = mq.matches;
+    const onSchemeChange = (e) => {
+      systemPrefersDark = e.matches;
+    };
+    mq.addEventListener('change', onSchemeChange);
+
     loadConfig();
 
     // 监听浏览器前进后退
     window.addEventListener('popstate', () => loadConfig());
 
     return () => {
+      mq.removeEventListener('change', onSchemeChange);
       window.removeEventListener('popstate', loadConfig);
     };
   });
@@ -304,7 +339,12 @@
         <Navbar navs={$pageConfig.navs} currentPath={$currentRoute} onNavigate={handleNavigate} />
       {/if}
 
-      <Toolbar onSearch={handleSearch} onOpenEditor={openYamlEditor} onAddService={openNewService} />
+      <Toolbar
+        onSearch={handleSearch}
+        onOpenEditor={openYamlEditor}
+        onAddService={openNewService}
+        mode={effectiveMode}
+      />
 
       <div class="main-content">
         {#if allTags.length > 0}
@@ -410,6 +450,18 @@
     --accent-soft: rgba(168, 218, 220, 0.16);
     --accent-line: rgba(168, 218, 220, 0.55);
     --accent-ink: #1a2332;
+    --ink-faint: rgba(255, 255, 255, 0.38);
+    --ok-ink: #b9f6ca;
+    --warn-ink: #ffe082;
+    --danger-ink: #ff9aa2;
+    --panel: rgba(12, 18, 30, 0.97);
+    --panel-inset: rgba(0, 0, 0, 0.35);
+    --menu: rgba(24, 30, 46, 0.96);
+    --overlay-strong: rgba(10, 16, 28, 0.75);
+    --code-bg: rgba(0, 0, 0, 0.3);
+    --scrim: rgba(0, 0, 0, 0.6);
+    --shadow: rgba(0, 0, 0, 0.35);
+    --shadow-strong: rgba(0, 0, 0, 0.5);
   }
 
   .theme-wrapper {
@@ -442,7 +494,7 @@
   }
 
   .error {
-    color: #e74c3c;
+    color: var(--danger-ink);
   }
 
   .main-content {
