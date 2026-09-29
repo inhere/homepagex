@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gookit/goutil/testutil/assert"
@@ -108,4 +109,57 @@ func TestHandlePagePostRequiresLogin(t *testing.T) {
 	got, err := os.ReadFile(pagefile)
 	assert.NoErr(t, err)
 	assert.Eq(t, original, string(got))
+}
+
+// 静态文件处理走的是 safeJoin，这里覆盖它的真实行为。
+// 之所以专门加这个用例：safeJoin 曾在 Linux 上把 "/x.png" 判成绝对路径而拒绝
+// （Windows 下 filepath.IsAbs 为 false，所以本地全过），结果是 Linux/Docker 里
+// 静态文件与图标全部 404；只跑 Windows 的验证漏掉了，CI 的 ubuntu 矩阵才抓到。
+func TestStaticFileHandler(t *testing.T) {
+	srv, _, _ := newTestServerFixture(t, []string{"@*"})
+	frontendDir := srv.config.FrontendDir
+
+	assert.NoErr(t, os.MkdirAll(filepath.Join(frontendDir, "assets"), 0o755))
+	assert.NoErr(t, os.WriteFile(filepath.Join(frontendDir, "assets", "app.css"), []byte("body{}"), 0o644))
+	assert.NoErr(t, os.WriteFile(filepath.Join(frontendDir, "index.html"), []byte("<html>spa</html>"), 0o644))
+	assert.NoErr(t, os.MkdirAll(filepath.Join(frontendDir, "sub"), 0o755))
+	assert.NoErr(t, os.WriteFile(filepath.Join(frontendDir, "sub", "index.html"), []byte("<html>sub</html>"), 0o644))
+
+	t.Run("带前导斜杠的静态文件可正常返回", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		srv.StaticFileHandler(rec, httptest.NewRequest(http.MethodGet, "/assets/app.css", nil))
+
+		assert.Eq(t, http.StatusOK, rec.Code)
+		assert.True(t, strings.Contains(rec.Body.String(), "body{}"))
+	})
+
+	t.Run("目录请求返回目录下的 index.html", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		srv.StaticFileHandler(rec, httptest.NewRequest(http.MethodGet, "/sub/", nil))
+
+		assert.Eq(t, http.StatusOK, rec.Code)
+		assert.True(t, strings.Contains(rec.Body.String(), "sub"))
+	})
+
+	t.Run("无扩展名的不存在路径交回前端路由", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		srv.StaticFileHandler(rec, httptest.NewRequest(http.MethodGet, "/tools", nil))
+
+		assert.Eq(t, http.StatusOK, rec.Code)
+		assert.True(t, strings.Contains(rec.Body.String(), "spa"))
+	})
+
+	t.Run("不存在的资源返回 404", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		srv.StaticFileHandler(rec, httptest.NewRequest(http.MethodGet, "/nope.png", nil))
+
+		assert.Eq(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("目录穿越被拒绝", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		srv.StaticFileHandler(rec, httptest.NewRequest(http.MethodGet, "/../config.yaml", nil))
+
+		assert.Eq(t, http.StatusNotFound, rec.Code)
+	})
 }

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -81,8 +82,11 @@ func TestSafeJoin(t *testing.T) {
 		assert.Err(t, err)
 	})
 
-	t.Run("拒绝绝对路径", func(t *testing.T) {
-		_, err := safeJoin(base, filepath.Join(base, "home.yaml"))
+	t.Run("盘符路径被拒绝（仅 Windows 有卷名概念）", func(t *testing.T) {
+		if runtime.GOOS != "windows" {
+			t.Skip("Linux 下 C:/x 只是普通相对名，由归属校验兜底")
+		}
+		_, err := safeJoin(base, `C:\Windows\win.ini`)
 		assert.Err(t, err)
 	})
 
@@ -91,11 +95,29 @@ func TestSafeJoin(t *testing.T) {
 		assert.Err(t, err)
 	})
 
-	t.Run("结果一定落在 baseDir 之内", func(t *testing.T) {
-		for _, rel := range []string{"a/b/c.yaml", "/x.png", "deep/deeper/f.txt"} {
+	// 这才是 safeJoin 真正要保证的东西（也是 go/path-injection 要拦的）：
+	// 不管输入长什么样，要么直接报错，要么结果必须落在 baseDir 之内。
+	// 两个平台对「绝对路径」的判定不同（Linux 认为 /x 是绝对路径、Windows 不认为），
+	// 所以这里断言的是不变量，而不是某个平台的判定细节。
+	t.Run("要么报错，要么结果落在 baseDir 之内", func(t *testing.T) {
+		inputs := []string{
+			"a/b/c.yaml", "/x.png", "deep/deeper/f.txt",
+			"/", "   ", "../secret.yaml", "a/../../secret.yaml",
+			`a\..\..\secret.yaml`, "C:/Windows/win.ini", "//server/share/x",
+			"/a/b/../../../etc/passwd",
+		}
+
+		for _, rel := range inputs {
 			got, err := safeJoin(base, rel)
-			assert.NoErr(t, err)
-			assert.True(t, strings.HasPrefix(got, base))
+			if err != nil {
+				continue // 拒绝也是正确处理
+			}
+
+			back, rerr := filepath.Rel(base, got)
+			assert.NoErr(t, rerr)
+			assert.False(t,
+				back == ".." || strings.HasPrefix(back, ".."+string(filepath.Separator)),
+				"输入 %q 的结果逃出了 baseDir: %s", rel, got)
 		}
 	})
 }

@@ -76,6 +76,17 @@ func safeJoin(baseDir, relPath string) (string, error) {
 	// 统一分隔符：Windows 下反斜杠也是目录分隔符，先归一化再判断
 	raw = strings.ReplaceAll(raw, "\\", "/")
 
+	// 先去掉前导斜杠：调用方给的通常是 URL 路径（r.URL.Path 必定以 / 开头）或页面名
+	// （如 /tools），它们是「相对站点根」而不是文件系统绝对路径。
+	// 顺序很关键 —— 必须放在判断绝对路径之前：否则 Linux 下 filepath.IsAbs("/x.png")
+	// 为 true，会被误判成绝对路径而拒绝；Windows 下同一条为 false。两平台行为不一致，
+	// 表现为 Linux/Docker 里静态文件与图标全部 404（CI 的 ubuntu 矩阵就是这样抓到的）。
+	raw = strings.TrimLeft(raw, "/")
+	if raw == "" {
+		return "", fmt.Errorf("empty path: %q", relPath)
+	}
+
+	// 去掉前导斜杠后仍是绝对路径的，只可能是带盘符/卷名的写法（如 C:/x）
 	if filepath.IsAbs(raw) || filepath.VolumeName(raw) != "" {
 		return "", fmt.Errorf("absolute path not allowed: %q", relPath)
 	}
