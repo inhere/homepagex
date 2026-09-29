@@ -14,8 +14,9 @@
   let error = null;
   let searchQuery = '';
   let selectedTag = '';
-  let filteredServices = [];
-  let allTags = [];
+  // 初值由下面的响应式块统一赋值，这里不需要再给一次
+  let filteredServices;
+  let allTags;
   let showYamlEditor = false;
   let showLoginModal = false;
   // 单块编辑（表单 / 源码）：{ kind, mode, serviceIndex, index }
@@ -324,7 +325,7 @@
             </div>
           {:else}
             <div class="services-container" style="--columns: {$pageConfig.columns || '3'}">
-              {#each filteredServices as service}
+              {#each filteredServices as service (service._serviceIndex)}
                 <ServiceGroup
                   {service}
                   style={$viewStyle}

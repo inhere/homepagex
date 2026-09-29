@@ -246,6 +246,16 @@ pnpm run dev
 pnpm run build
 ```
 
+#### 4. 代码检查
+
+```bash
+pnpm run lint       # 检查（CI 里也会跑）
+pnpm run lint:fix   # 自动修复可修复项
+```
+
+> lint 里最关键的是 `no-undef`：像「用了某个 store 却忘了 import」这类问题
+> Svelte 编译期不报错、构建也能通过，但会在浏览器里抛 ReferenceError。
+
 ## 图标
 
 支持 FontAwesome 图标:

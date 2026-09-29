@@ -6,7 +6,6 @@ import terser from '@rollup/plugin-terser';
 import css from 'rollup-plugin-css-only';
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
 
 const production = !process.env.ROLLUP_WATCH;
 
@@ -46,27 +45,6 @@ function copyDir(src, dest) {
 	}
 }
 
-function serve() {
-	let server;
-
-	function toExit() {
-		if (server) server.kill(0);
-	}
-
-	return {
-		writeBundle() {
-			if (server) return;
-			server = spawn('npm', ['run', 'start', '--', '--dev'], {
-				stdio: ['ignore', 'inherit', 'inherit'],
-				shell: true
-			});
-
-			process.on('SIGTERM', toExit);
-			process.on('exit', toExit);
-		}
-	};
-}
-
 export default {
 	input: 'src/main.js',
 	output: {
@@ -100,9 +78,8 @@ export default {
 		// Copy public directory to build
 		copyPublic(),
 
-		// 开发模式下不再自动启动本地静态服务器，
-		// 由 Go 后端统一提供静态文件
-		// !production && serve(),
+		// 开发模式下不自动启动本地静态服务器：静态文件由 Go 后端统一提供
+		// （原 serve() 插件已移除，因为不再需要 npm run start）
 
 		// Watch the `public` directory and refresh the
 		// browser on changes when not in production

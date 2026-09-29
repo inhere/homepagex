@@ -6,7 +6,7 @@
 
 <nav class="navbar">
   <div class="nav-list">
-    {#each navs as nav}
+    {#each navs as nav (nav.url)}
       <button
         class="nav-item"
         class:active={currentPath === nav.url}

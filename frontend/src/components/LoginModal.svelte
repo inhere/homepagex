@@ -40,7 +40,7 @@
       const data = result.data || {};
       // 将后端返回的用户信息整体透传给上层（包含权限等扩展字段）
       dispatch('login-success', data.username ? data : { username });
-    } catch (e) {
+    } catch {
       error = '网络错误，请稍后重试';
     } finally {
       loading = false;

@@ -29,7 +29,7 @@
   </div>
 
   <div class="items-container">
-    {#each service.items || [] as item, idx}
+    {#each service.items || [] as item, idx (item._itemIndex != null ? item._itemIndex : idx)}
       <ServiceItem
         {item}
         {style}

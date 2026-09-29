@@ -78,7 +78,7 @@
           {item.name}
         </button>
         {#if item.tags && item.tags.length > 0}
-          {#each item.tags as tag}
+          {#each [...new Set(item.tags)] as tag (tag)}
             <span class="tag">{tag}</span>
           {/each}
         {/if}
@@ -138,7 +138,7 @@
         </div>
     </div>
     {#if item.tags && item.tags.length > 0}
-      {#each item.tags as tag}
+      {#each [...new Set(item.tags)] as tag (tag)}
         <span class="tag">{tag}</span>
       {/each}
     {/if}

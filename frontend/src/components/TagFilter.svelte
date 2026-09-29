@@ -2,10 +2,6 @@
   export let tags = [];
   export let selectedTag = '';
   export let onSelectTag = () => {};
-
-  function getTagCount(tag) {
-    return tag.count || 0;
-  }
 </script>
 
 <div class="tag-filter">
@@ -22,7 +18,7 @@
       <span class="tag-name">全部</span>
       <span class="tag-count"></span>
     </button>
-    {#each tags as tag}
+    {#each tags as tag (tag.name)}
       <button
         class="tag-btn"
         class:active={selectedTag === tag.name}

@@ -206,7 +206,7 @@
 
     {#if sources.length > 1}
       <div class="source-toggle" aria-label="图标来源切换">
-        {#each sources as source}
+        {#each sources as source (source.id)}
           <button
             type="button"
             class="source-btn"
@@ -238,7 +238,7 @@
       </div>
     {:else}
       <div class="icon-grid">
-        {#each filteredIcons as icon}
+        {#each filteredIcons as icon (icon.name)}
           <button
             class="icon-card"
             on:click={() => selectIcon(icon)}

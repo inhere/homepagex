@@ -17,7 +17,7 @@
         method: 'POST',
         credentials: 'include',
       });
-    } catch (e) {
+    } catch {
       // ignore network errors on logout
     }
     userInfo.set(null);

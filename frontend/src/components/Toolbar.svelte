@@ -87,7 +87,7 @@
 
       {#if showThemeDropdown}
         <div class="theme-dropdown">
-          {#each themes as theme}
+          {#each themes as theme (theme.id)}
             <button
               class="theme-option"
               class:active={$currentTheme === theme.id}
