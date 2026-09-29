@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -294,5 +295,67 @@ func TestNormalizeBlockYAML(t *testing.T) {
 			assert.NoErr(t, err)
 			assert.Eq(t, tt.want, got)
 		})
+	}
+}
+
+// 回归测试：item 块的 JSON 必须带 service_index，即使是 0。
+//
+// 前端是按 `block.service_index === serviceIndex` 定位块的，而第一个分组的下标正是 0；
+// 一旦该字段被 `omitempty` 省略，就变成 `undefined === 0`，前端报「未找到对应的配置块」。
+// 之前只断言了结构体字段（0 在结构体里当然存在），所以漏掉了这个 JSON 层的问题。
+func TestListPageBlocksJSONKeepsServiceIndex(t *testing.T) {
+	blocks, err := listPageBlocks([]byte(blockTestYAML))
+	assert.NoErr(t, err)
+
+	data, err := json.Marshal(blocks)
+	assert.NoErr(t, err)
+
+	var raw []map[string]any
+	assert.NoErr(t, json.Unmarshal(data, &raw))
+	assert.Eq(t, len(blocks), len(raw))
+
+	// 1) 每个 item 块的 JSON 里都要有 service_index，且值正确
+	items := 0
+	hasServiceZero := false
+	for i, b := range blocks {
+		if b.Kind != BlockItem {
+			continue
+		}
+		items++
+		if b.ServiceIndex == 0 {
+			hasServiceZero = true
+		}
+
+		got, ok := raw[i]["service_index"]
+		if !ok {
+			t.Fatalf("item 块（service_index=%d, index=%d）的 JSON 里缺少 service_index", b.ServiceIndex, b.Index)
+		}
+		assert.Eq(t, float64(b.ServiceIndex), got)
+	}
+
+	// 用例数据必须覆盖「第一个分组」这个关键场景，否则防不住该回归
+	assert.True(t, items > 0)
+	assert.True(t, hasServiceZero)
+
+	// 2) 直接用前端的定位逻辑，在反序列化后的 JSON 上把每个 item 块找一遍
+	for _, b := range blocks {
+		if b.Kind != BlockItem {
+			continue
+		}
+
+		found := false
+		for _, m := range raw {
+			if m["kind"] != string(BlockItem) || m["index"] != float64(b.Index) {
+				continue
+			}
+			if m["service_index"] == float64(b.ServiceIndex) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("前端逻辑（kind + index + service_index）在 JSON 中定位不到 item 块: service=%d index=%d",
+				b.ServiceIndex, b.Index)
+		}
 	}
 }

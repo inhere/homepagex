@@ -38,8 +38,11 @@ type BlockInfo struct {
 	Kind BlockKind `json:"kind"`
 	// Index services 内的下标；对 item 无意义
 	Index int `json:"index"`
-	// ServiceIndex item 所属分组的下标；对 service 无意义
-	ServiceIndex int `json:"service_index,omitempty"`
+	// ServiceIndex item 所属分组的下标；对 service 无意义。
+	// 注意：这里不能加 omitempty —— 第一个分组的下标是 0，而前端是按
+	// `block.service_index === serviceIndex` 精确定位块的，
+	// 一旦字段被省略就会变成 undefined === 0，报「未找到对应的配置块」。
+	ServiceIndex int `json:"service_index"`
 	// Name / Icon 分组的名称与图标，便于前端直接展示
 	Name string `json:"name,omitempty"`
 	Icon string `json:"icon,omitempty"`
