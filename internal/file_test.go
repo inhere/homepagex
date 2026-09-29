@@ -46,31 +46,6 @@ func TestBackupFile(t *testing.T) {
 	assert.NoErr(t, backupFile(filepath.Join(dir, "missing.yaml")))
 }
 
-func TestResolveWithinDir(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "pages")
-
-	t.Run("目录内路径通过", func(t *testing.T) {
-		got, err := resolveWithinDir(dir, filepath.Join(dir, "home.yaml"))
-		assert.NoErr(t, err)
-		assert.Eq(t, "home.yaml", filepath.Base(got))
-	})
-
-	t.Run("子目录也通过", func(t *testing.T) {
-		_, err := resolveWithinDir(dir, filepath.Join(dir, "sub", "home.yaml"))
-		assert.NoErr(t, err)
-	})
-
-	t.Run("上级目录被拒绝", func(t *testing.T) {
-		_, err := resolveWithinDir(dir, filepath.Join(dir, "..", "secret.yaml"))
-		assert.Err(t, err)
-	})
-
-	t.Run("内嵌 .. 被拒绝", func(t *testing.T) {
-		_, err := resolveWithinDir(dir, filepath.Join(dir, "a", "..", "..", "secret.yaml"))
-		assert.Err(t, err)
-	})
-}
-
 // 路径穿越的页面名不应被读到
 func TestLoadPageConfigRejectsTraversal(t *testing.T) {
 	dir := t.TempDir()

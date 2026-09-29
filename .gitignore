@@ -27,6 +27,9 @@ frontend/public/build/
 dist/
 release/
 
+# CodeQL 本地分析产物（database + sarif）
+.codeql-work/
+
 # IDE
 .idea/
 .vscode/

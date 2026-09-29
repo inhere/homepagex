@@ -1,11 +1,9 @@
 package internal
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // writeFileAtomic 原子写入文件：先写同目录临时文件再 rename。
@@ -67,28 +65,4 @@ func backupFile(path string) error {
 		return err
 	}
 	return dst.Chmod(info.Mode().Perm())
-}
-
-// resolveWithinDir 校验 target 落在 dir 之内，返回清理后的绝对路径。
-//
-// 用于防御路径穿越：例如页面名里出现 "a/../../b" 时，filepath.Join 会把
-// 路径清理到 pages 目录之外。
-func resolveWithinDir(dir, target string) (string, error) {
-	absDir, err := filepath.Abs(dir)
-	if err != nil {
-		return "", err
-	}
-	absTarget, err := filepath.Abs(target)
-	if err != nil {
-		return "", err
-	}
-
-	rel, err := filepath.Rel(absDir, absTarget)
-	if err != nil {
-		return "", err
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path %q escapes base dir %q", target, dir)
-	}
-	return absTarget, nil
 }

@@ -38,9 +38,14 @@ func (s *Server) GetIconLocalHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 构建本地缓存路径
+	// 构建本地缓存路径：统一走 safeJoin 做路径安全处理
 	cacheDir := filepath.Join(s.config.FrontendDir, IconLocalPrefix)
-	localPath := filepath.Join(cacheDir, iconPath)
+	localPath, err := safeJoin(cacheDir, iconPath)
+	if err != nil {
+		s.debugf("NOTICE invalid icon path %q: %v", iconPath, err)
+		s.sendError(w, "Icon not found", http.StatusNotFound)
+		return
+	}
 
 	// 检查本地缓存是否存在
 	if _, err := os.Stat(localPath); os.IsNotExist(err) {
@@ -317,34 +322,37 @@ func (s *Server) postPageBlock(w http.ResponseWriter, r *http.Request, path stri
 
 // StaticFileHandler 静态文件服务
 func (s *Server) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
-	// 清理路径防止目录遍历
-	path := strings.TrimLeft(r.URL.Path, "/.")
-	if path == "" {
+	// 路径安全统一交给 safeJoin（清理 + 归属校验），不再自己 TrimLeft 后 Join
+	path := r.URL.Path
+	if path == "" || path == "/" {
 		path = "index.html"
 	}
 
-	// 构建完整路径
-	fullPath := filepath.Join(s.config.FrontendDir, path)
-
-	// 检查文件是否存在
-	info, err := os.Stat(fullPath)
+	fullPath, err := safeJoin(s.config.FrontendDir, path)
 	if err != nil {
-		// 如果是目录，尝试 index.html
-		if info != nil && info.IsDir() {
-			fullPath = filepath.Join(fullPath, "index.html")
-		} else {
-			extName := filepath.Ext(path)
-			if extName == "" {
-				// 返回前端应用的 index.html（支持前端路由）
-				fullPath = filepath.Join(s.config.FrontendDir, "index.html")
-			} else {
-				// 逐请求的静态资源日志太吵，只在 debug 模式打印
-				s.debugf("NOTICE File not found: %s", fullPath)
-				// 否则返回 404
-				s.sendError(w, "File not found", http.StatusNotFound)
-				return
-			}
+		s.debugf("NOTICE invalid static path: %s (%v)", r.URL.Path, err)
+		s.sendError(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	// 目录 → 目录下的 index.html；不存在且无扩展名 → 交回前端路由
+	info, statErr := os.Stat(fullPath)
+	if statErr == nil && info.IsDir() {
+		fullPath = filepath.Join(fullPath, "index.html")
+	} else if statErr != nil {
+		if filepath.Ext(path) != "" {
+			// 逐请求的静态资源日志太吵，只在 debug 模式打印
+			s.debugf("NOTICE File not found: %s", fullPath)
+			s.sendError(w, "File not found", http.StatusNotFound)
+			return
 		}
+
+		indexPath, ierr := safeJoin(s.config.FrontendDir, "index.html")
+		if ierr != nil {
+			s.sendError(w, "File not found", http.StatusNotFound)
+			return
+		}
+		fullPath = indexPath
 	}
 
 	s.debugf("Request static: %s, Serving file: %s", r.URL.Path, fullPath)

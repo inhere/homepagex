@@ -3,7 +3,6 @@ package internal
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -121,7 +120,7 @@ func (m *PageDataManager) getFilename(name string) string {
 func (m *PageDataManager) LoadPageConfig(name string) (*PageConfig, error) {
 	filename := m.getFilename(name)
 
-	pagefile, err := resolveWithinDir(m.PageDir, filepath.Join(m.PageDir, filename+".yaml"))
+	pagefile, err := safeJoin(m.PageDir, filename+".yaml")
 	if err != nil {
 		return nil, fmt.Errorf("invalid page name %q: %w", name, err)
 	}
@@ -130,7 +129,7 @@ func (m *PageDataManager) LoadPageConfig(name string) (*PageConfig, error) {
 
 	// debug mode 下，优先使用 {name}.local.yaml
 	if m.Debug {
-		dotLocalFile, lerr := resolveWithinDir(m.PageDir, filepath.Join(m.PageDir, filename+".local.yaml"))
+		dotLocalFile, lerr := safeJoin(m.PageDir, filename+".local.yaml")
 		if lerr == nil && fsutil.IsFile(dotLocalFile) {
 			pagefile = dotLocalFile
 			data, _ = os.ReadFile(dotLocalFile)

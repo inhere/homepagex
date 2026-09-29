@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -49,6 +50,60 @@ func getContentType(path string) string {
 		return ct
 	}
 	return "application/octet-stream"
+}
+
+// safeJoin 把一个「可能来自用户输入」的相对路径安全地拼接到 baseDir 之下。
+//
+// 这是全项目唯一做路径安全处理的地方：页面文件、静态文件、图标缓存都走它，
+// 而不是各处各写一套 TrimLeft/TrimPrefix + filepath.Join。
+//
+// 净化用 Go 生态里公认的写法 `filepath.Clean("/" + p)`：前缀一个斜杠之后，
+// 任何 ".." 都只会在根下被解析掉，结果必定以 "/" 开头，因此不可能逃出根；
+// 再去掉这个前导斜杠，交给 filepath.Join 拼到 baseDir 之下。
+// 这同时也是 CodeQL go/path-injection 认可的 sanitizer 写法。
+//
+// 另外做两件显式校验（纵深防御，也让行为可预期而不是静默改写）：
+//   - 拒绝绝对路径与盘符（C:\\x、\\\\server\\share）
+//   - 拒绝含 ".." 路径段的输入
+//
+// 返回值可直接用于 os.ReadFile / os.WriteFile / http.ServeFile。
+func safeJoin(baseDir, relPath string) (string, error) {
+	raw := strings.TrimSpace(relPath)
+	if raw == "" {
+		return "", errors.New("empty path")
+	}
+
+	// 统一分隔符：Windows 下反斜杠也是目录分隔符，先归一化再判断
+	raw = strings.ReplaceAll(raw, "\\", "/")
+
+	if filepath.IsAbs(raw) || filepath.VolumeName(raw) != "" {
+		return "", fmt.Errorf("absolute path not allowed: %q", relPath)
+	}
+	for _, seg := range strings.Split(raw, "/") {
+		if seg == ".." {
+			return "", fmt.Errorf("path must not contain '..': %q", relPath)
+		}
+	}
+
+	// 关键一步：Clean("/" + p) 保证结果以 "/" 开头，任何 ".." 都逃不出根
+	clean := filepath.Clean("/" + raw)
+	rel := strings.TrimPrefix(clean, "/")
+	if rel == "" || rel == "." {
+		return "", fmt.Errorf("empty path: %q", relPath)
+	}
+
+	baseAbs, err := filepath.Abs(baseDir)
+	if err != nil {
+		return "", err
+	}
+	target := filepath.Join(baseAbs, filepath.FromSlash(rel))
+
+	// 纵深防御：再确认结果确实落在 baseDir 之内
+	back, err := filepath.Rel(baseAbs, target)
+	if err != nil || back == ".." || strings.HasPrefix(back, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes base dir: %q", relPath)
+	}
+	return target, nil
 }
 
 var client = &http.Client{
