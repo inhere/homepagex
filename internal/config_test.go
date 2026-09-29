@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"crypto/tls"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -327,4 +329,64 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Eq(t, "8090", cfg.Server.Port)
 	assert.True(t, cfg.Resolve("", "/anything", false).Allowed)
 	assert.False(t, cfg.Resolve("", "/anything", true).Allowed)
+}
+
+func TestNormalizeCookieSecure(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"", cookieSecureAuto, true},
+		{"auto", cookieSecureAuto, true},
+		{"  AUTO ", cookieSecureAuto, true},
+		{"true", cookieSecureTrue, true},
+		{"always", cookieSecureTrue, true},
+		{"false", cookieSecureFalse, true},
+		{"never", cookieSecureFalse, true},
+		{"yes", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			got, ok := normalizeCookieSecure(tt.in)
+			assert.Eq(t, tt.ok, ok)
+			assert.Eq(t, tt.want, got)
+		})
+	}
+}
+
+func TestSecureCookie(t *testing.T) {
+	httpsReq := httptest.NewRequest("GET", "/", nil)
+	httpsReq.TLS = &tls.ConnectionState{}
+	httpReq := httptest.NewRequest("GET", "/", nil)
+
+	t.Run("auto（默认）只在 HTTPS 下带 Secure", func(t *testing.T) {
+		cfg := &Config{}
+		assert.False(t, cfg.SecureCookie(httpReq))
+		assert.True(t, cfg.SecureCookie(httpsReq))
+		assert.False(t, cfg.SecureCookie(nil))
+	})
+
+	t.Run("true 始终带 Secure", func(t *testing.T) {
+		cfg := &Config{Server: ServerConfig{CookieSecure: cookieSecureTrue}}
+		assert.True(t, cfg.SecureCookie(httpReq))
+		assert.True(t, cfg.SecureCookie(httpsReq))
+	})
+
+	t.Run("false 始终不带 Secure", func(t *testing.T) {
+		cfg := &Config{Server: ServerConfig{CookieSecure: cookieSecureFalse}}
+		assert.False(t, cfg.SecureCookie(httpsReq))
+	})
+}
+
+// cookie_secure 写错时必须启动失败，而不是静默回退
+func TestLoadConfigRejectsInvalidCookieSecure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cfg.yaml")
+	assert.NoErr(t, os.WriteFile(path, []byte("server:\n  cookie_secure: maybe\n"), 0o644))
+
+	cfg, err := LoadConfig(path)
+
+	assert.Err(t, err)
+	assert.Nil(t, cfg)
 }

@@ -3,6 +3,7 @@ package internal
 import (
 	"crypto/subtle"
 	"fmt"
+	"net/http"
 	"os"
 	"sort"
 	"strings"
@@ -16,7 +17,17 @@ type ServerConfig struct {
 	Mode       string `yaml:"mode" json:"mode"`               // debug or release
 	Port       string `yaml:"port" json:"port"`               // 监听端口
 	SessionTTL string `yaml:"session_ttl" json:"session_ttl"` // 会话有效期，如 "2h", "30m"
+	// CookieSecure 会话 cookie 的 Secure 属性策略：
+	// auto（默认，请求本身是 HTTPS 才带 Secure）/ true（始终带）/ false（从不带）
+	CookieSecure string `yaml:"cookie_secure" json:"cookie_secure"`
 }
+
+// cookie_secure 的三种取值（归一化后）
+const (
+	cookieSecureAuto  = "auto"
+	cookieSecureTrue  = "true"
+	cookieSecureFalse = "false"
+)
 
 // NavItem 导航项
 type NavItem struct {
@@ -127,6 +138,13 @@ func LoadConfig(path string) (*Config, error) {
 	if config.FrontendDir == "" {
 		config.FrontendDir = "./frontend/build"
 	}
+
+	// 归一化并校验 cookie_secure：写错就启动失败，避免静默回退成另一种语义
+	mode, ok := normalizeCookieSecure(config.Server.CookieSecure)
+	if !ok {
+		return nil, fmt.Errorf("invalid server.cookie_secure %q, expect auto|true|false", config.Server.CookieSecure)
+	}
+	config.Server.CookieSecure = mode
 
 	if err = config.parseAuths(); err != nil {
 		return nil, fmt.Errorf("failed to parse auths: %w", err)
@@ -273,6 +291,40 @@ func (c *Config) SessionTTLDuration() time.Duration {
 		return 2 * time.Hour
 	}
 	return d
+}
+
+// normalizeCookieSecure 归一化 cookie_secure 取值，第二个返回值表示取值是否合法
+func normalizeCookieSecure(raw string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", cookieSecureAuto:
+		return cookieSecureAuto, true
+	case "true", "always", "force":
+		return cookieSecureTrue, true
+	case "false", "never", "off":
+		return cookieSecureFalse, true
+	}
+	return "", false
+}
+
+// SecureCookie 判断当前请求下会话 cookie 是否应带 Secure 属性。
+//
+// 默认 auto：只有请求本身就是 HTTPS 时才带 Secure。本地明文 HTTP（例如
+// http://localhost:8090）下若强制 Secure，浏览器会直接丢弃该 cookie，登录会失效。
+// 部署在「TLS 终止的反向代理」之后时，容器里看到的仍是明文 HTTP，请显式配置
+// cookie_secure: true。
+func (c *Config) SecureCookie(r *http.Request) bool {
+	if c == nil {
+		return false
+	}
+
+	switch c.Server.CookieSecure {
+	case cookieSecureTrue:
+		return true
+	case cookieSecureFalse:
+		return false
+	default: // auto
+		return r != nil && r.TLS != nil
+	}
 }
 
 // UserPermission 用户某路径的权限描述（面向前端展示）

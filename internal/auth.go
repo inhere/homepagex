@@ -142,6 +142,7 @@ func (s *Server) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Value:    sessionID,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   s.config.SecureCookie(r),
 		SameSite: http.SameSiteLaxMode,
 		// 不设置 Expires/MaxAge，浏览器会话结束即失效
 	})
@@ -172,6 +173,7 @@ func (s *Server) LogoutHandler(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 		HttpOnly: true,
+		Secure:   s.config.SecureCookie(r),
 		SameSite: http.SameSiteLaxMode,
 	})
 

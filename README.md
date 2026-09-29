@@ -59,6 +59,10 @@ homepagex/
 server:
   port: "8090"
   session_ttl: "2h"   # 登录会话有效期
+  # 会话 cookie 的 Secure 属性：auto（默认，请求是 HTTPS 才带）/ true / false
+  # 本地明文 HTTP 访问必须保持 auto 或 false，否则浏览器会丢弃 cookie、登录失效；
+  # 部署在 TLS 终止的反向代理后面时请显式设为 true
+  cookie_secure: auto
 
 # 页面配置文件存放目录
 pages_dir: "./pages"
