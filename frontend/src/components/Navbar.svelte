@@ -6,7 +6,10 @@
 
 <nav class="navbar">
   <div class="nav-list">
-    {#each navs as nav (nav.url)}
+    <!-- nav.url 可能重复（配置里写了两个相同地址的导航项），而 keyed each 遇到重复 key
+         会直接抛错导致页面白屏，所以这里用下标作 key。导航列表是静态的、条目内部也没有
+         状态，用下标不会带来 diff 副作用。 -->
+    {#each navs as nav, i (i)}
       <button
         class="nav-item"
         class:active={currentPath === nav.url}

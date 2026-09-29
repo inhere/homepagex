@@ -133,7 +133,8 @@
                 <span class="perm-count">{$userInfo.permissions.length} 条规则</span>
               </div>
               <div class="perm-list">
-                {#each $userInfo.permissions as perm (perm.path + perm.perm)}
+                <!-- 配置里可能重复写同一条规则（如 @/a:ro,/a:ro），用下标作 key 更稳 -->
+                {#each $userInfo.permissions as perm, i (i)}
                   <div class="perm-item">
                     <div class="perm-icon-wrapper">
                       <i class={permIconClass(perm.perm)}></i>

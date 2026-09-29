@@ -137,8 +137,12 @@
           url: buildIconUrl(source, icon),
         }));
 
-        sourceCache = { ...sourceCache, [source.id]: normalized };
-        icons = normalized;
+        // 按名字去重：既避免重复图标，也保证下面 keyed each 的 key 唯一
+        // （远端元数据由第三方维护，不能假定 name 一定不重复）
+        const unique = [...new Map(normalized.map((icon) => [icon.name, icon])).values()];
+
+        sourceCache = { ...sourceCache, [source.id]: unique };
+        icons = unique;
       }
 
       filteredIcons = icons.slice(0, 20);
