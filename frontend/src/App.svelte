@@ -10,7 +10,13 @@
   import LoginModal from './components/LoginModal.svelte';
   import { pageConfig, currentRoute, viewStyle, currentTheme, getThemeTokens, userInfo, colorMode } from './stores.js';
 
+  // loading: 是否正在请求；booted: 是否已完成首次加载。
+  // 只有首次加载才显示整页 Loading —— 切换页面时若把 Header/Navbar/Toolbar 一起
+  // 换掉再重建，视觉上就是每次点菜单都「闪一下」。
   let loading = true;
+  let booted = false;
+  // loadSeq: 请求序号，避免快速切换时「先发的慢响应」覆盖后发的页面
+  let loadSeq = 0;
   let error = null;
   let searchQuery = '';
   let selectedTag = '';
@@ -192,10 +198,12 @@
   // 加载页面配置
   async function loadConfig(route) {
     const currentRoutePath = route || getRoute();
+    const seq = ++loadSeq;
+
     loading = true;
     error = null;
-    searchQuery = '';
-    selectedTag = '';
+    // 这里先不清空搜索/标签：旧页面在请求期间保持原样，
+    // 否则过滤条件一没，旧内容会先「展开跳一下」。新数据到了再重置。
 
     const shouldRefresh = getRefreshParam();
     const apiPath = shouldRefresh
@@ -203,12 +211,18 @@
       : `/api/page${currentRoutePath === '/' ? '' : currentRoutePath}`;
 
     try {
+      // 选中态立即更新，不等请求回来
       currentRoute.set(currentRoutePath);
 
       const fetchOptions = {
         credentials: 'include',
       };
       const response = await fetch(apiPath, fetchOptions);
+
+      // 期间用户又切了页面：丢弃本次结果，避免旧数据覆盖新页面
+      if (seq !== loadSeq) {
+        return;
+      }
 
       if (response.status === 401) {
         // 需要认证：弹出登录对话框，由用户输入用户名和密码
@@ -218,19 +232,32 @@
 
       const result = await response.json();
 
+      if (seq !== loadSeq) {
+        return;
+      }
+
       if (!result.success) {
         throw new Error(result.error || 'Failed to load config');
       }
 
       pageConfig.set(result.data);
       userInfo.set(result.data.user_info || null);
+      // 新页面数据已就绪，这时再重置过滤条件
+      searchQuery = '';
+      selectedTag = '';
       if (!localStorage.getItem('viewStyle')) {
         viewStyle.set(result.data.style || 'cards');
       }
     } catch (err) {
+      if (seq !== loadSeq) {
+        return;
+      }
       error = err.message;
     } finally {
-      loading = false;
+      if (seq === loadSeq) {
+        loading = false;
+        booted = true;
+      }
     }
   }
 
@@ -315,12 +342,12 @@
 
 <div class="theme-wrapper" style={themeVars}>
   <main class="app {$viewStyle} theme-{$currentTheme}">
-    {#if loading}
+    {#if !booted && loading}
       <div class="loading">
         <i class="fas fa-spinner fa-spin"></i>
         <span>Loading...</span>
       </div>
-    {:else if error}
+    {:else if !booted && error}
       <div class="error">
         <i class="fas fa-exclamation-circle"></i>
         <span>{error}</span>
@@ -357,8 +384,14 @@
           </aside>
         {/if}
 
-        <div class="services-wrapper">
-          {#if filteredServices.length === 0}
+        <div class="services-wrapper" aria-busy={loading}>
+          {#if error}
+            <!-- 首次加载之后的错误就地在内容区展示，不再整页替换（否则又是「闪一下」） -->
+            <div class="no-results inline-error">
+              <i class="fas fa-exclamation-circle"></i>
+              <p>{error}</p>
+            </div>
+          {:else if filteredServices.length === 0}
             <div class="no-results">
               <i class="fas fa-search"></i>
               <p>没有找到匹配的服务</p>
@@ -529,6 +562,10 @@
 
   .no-results p {
     font-size: 1.1rem;
+  }
+
+  .no-results.inline-error {
+    color: var(--danger-ink, #ff9aa2);
   }
 
   .services-container {
