@@ -1,0 +1,50 @@
+# 示例页面：站点按「分组 -> 条目」组织
+# 页面文件名即页面名（home.yaml -> / 首页）；新增页面后在 config.yaml 的 page_navs 里加导航项
+title: "Home Dashboard"
+subtitle: "示例导航页，按需修改"
+theme: "ocean-depths"
+style: "cards" # cards 或 list
+columns: "3"
+
+# 站点在线状态检查（ping）
+connectivity:
+  check_interval: 30000
+  mode: "ping"
+
+services:
+  - name: "常用"
+    icon: "fas fa-star"
+    items:
+      - name: "GitHub"
+        logo: "icons-local/dashboard-icons/png/github.png"
+        subtitle: "代码托管"
+        tags: ["常用"]
+        url: "https://github.com"
+        target: "_blank"
+
+      - name: "GitLab"
+        logo: "icons-local/dashboard-icons/png/gitlab.png"
+        subtitle: "代码托管"
+        tags: ["常用"]
+        url: "https://gitlab.com"
+        target: "_blank"
+
+  - name: "服务示例"
+    icon: "fas fa-server"
+    items:
+      # 下面这些地址是占位示例，请换成自己的服务
+      - name: "Grafana"
+        logo: "icons-local/dashboard-icons/png/grafana.png"
+        subtitle: "监控面板（示例地址）"
+        tags: ["监控"]
+        keywords: "metrics dashboard 面板"
+        url: "https://grafana.example.com"
+        target: "_blank"
+
+      - name: "Portainer"
+        logo: "icons-local/dashboard-icons/png/portainer.png"
+        subtitle: "容器管理（示例地址）"
+        tags: ["运维"]
+        keywords: "docker 容器"
+        url: "https://portainer.example.com"
+        target: "_blank"

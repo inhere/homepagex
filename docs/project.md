@@ -17,11 +17,14 @@ HomePageX is a lightweight Homer-like dashboard homepage built with **Go (backen
 # Install dependencies
 go mod tidy
 
-# Run the server (uses config.yaml by default)
-go run ./cmd/homepagex
+# Init example config and pages into the global config dir (~/.config/homepagex)
+go run ./cmd/homepagex init -g
 
-# Run with custom config
-go run ./cmd/homepagex /path/to/config.yaml
+# Run the server (loads <config-dir>/config.yaml by default)
+go run ./cmd/homepagex serve
+
+# Run with a custom config (global options go before the subcommand)
+go run ./cmd/homepagex -c /path/to/config.yaml serve
 
 # Build binary (or simply: make build)
 go build -o homepagex ./cmd/homepagex
@@ -30,8 +33,12 @@ go build -o homepagex ./cmd/homepagex
 ./homepagex -V
 
 # Override listen address / run mode
-./homepagex --addr :9090
-./homepagex -mode debug
+./homepagex serve --addr :9090
+./homepagex serve --mode debug
+
+# Find / open a site by keyword
+./homepagex find grafana
+./homepagex open grafana
 
 # Show help
 ./homepagex -h
@@ -64,7 +71,7 @@ pnpm run start
 ### Full Development
 
 1. Build frontend first: `cd frontend && pnpm run build`
-2. Build & run backend: `make build && ./dist/homepagex`（或 `go run ./cmd/homepagex`）
+2. Build & run backend: `make build && ./dist/homepagex serve`（或 `go run ./cmd/homepagex serve`）
 3. Access at: `http://localhost:8090`
 
 ## Project Structure

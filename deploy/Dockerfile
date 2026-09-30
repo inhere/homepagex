@@ -44,4 +44,5 @@ COPY pages/ ./pages/
 
 EXPOSE 8090
 
-CMD ["./homepagex"]
+# 全局选项要写在子命令前面（-c 是应用级选项）；容器里配置与页面都在 /app 下
+CMD ["./homepagex", "-c", "/app/config.yaml", "serve"]

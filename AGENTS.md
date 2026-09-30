@@ -15,7 +15,7 @@ HomePageX is a lightweight Homer-like dashboard homepage built with **Go (backen
 ### Full Development
 
 1. Build frontend first: `cd frontend && pnpm run build`
-2. Build & run backend: `make build && ./dist/homepagex`（或 `go run ./cmd/homepagex`）
+2. Build & run backend: `make build && ./dist/homepagex serve`（或 `go run ./cmd/homepagex serve`）
 3. Access at: `http://localhost:8090`
 
 > 入口在 `cmd/homepagex/`，不在仓库根目录。

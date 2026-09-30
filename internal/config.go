@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -150,6 +151,26 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse auths: %w", err)
 	}
 	return config, nil
+}
+
+// ResolveRelativeDirs 把 pages_dir / frontend_dir 里的相对路径按「配置文件所在目录」解析。
+//
+// 全局配置（~/.config/homepagex/config.yaml）会在任意工作目录下被加载，
+// 若仍以进程 CWD 为基准，./pages 就会指向别处 —— 换个目录启动就找不到页面了。
+func (c *Config) ResolveRelativeDirs(configPath string) error {
+	absFile, err := filepath.Abs(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve config path %q: %w", configPath, err)
+	}
+
+	baseDir := filepath.Dir(absFile)
+	for _, dir := range []*string{&c.PagesDir, &c.FrontendDir} {
+		if *dir == "" || filepath.IsAbs(*dir) {
+			continue
+		}
+		*dir = filepath.Join(baseDir, *dir)
+	}
+	return nil
 }
 
 // parseAuths 解析 auths / deny 配置，产出归一化规则。

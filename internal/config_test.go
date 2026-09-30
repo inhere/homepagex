@@ -292,6 +292,36 @@ func TestIsNeedAuth(t *testing.T) {
 	assert.True(t, c.IsNeedAuth("/", true))
 }
 
+func TestConfigResolveRelativeDirs(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "config.yaml")
+
+	t.Run("相对目录锚定到配置文件所在目录", func(t *testing.T) {
+		cfg := &Config{PagesDir: "./pages", FrontendDir: "frontend/build"}
+		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
+
+		assert.Eq(t, filepath.Join(dir, "pages"), cfg.PagesDir)
+		assert.Eq(t, filepath.Join(dir, "frontend", "build"), cfg.FrontendDir)
+	})
+
+	t.Run("绝对目录保持不变", func(t *testing.T) {
+		other := t.TempDir()
+		cfg := &Config{PagesDir: other, FrontendDir: other}
+		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
+
+		assert.Eq(t, other, cfg.PagesDir)
+		assert.Eq(t, other, cfg.FrontendDir)
+	})
+
+	t.Run("空值保持为空", func(t *testing.T) {
+		cfg := &Config{}
+		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
+
+		assert.Eq(t, "", cfg.PagesDir)
+		assert.Eq(t, "", cfg.FrontendDir)
+	})
+}
+
 // 读不到配置文件时必须返回一份「可用的」默认配置而不是 nil，
 // 否则调用方（main）会对着 nil 取字段，直接 panic
 func TestLoadConfigMissingFileUsesDefaults(t *testing.T) {

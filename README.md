@@ -25,13 +25,18 @@
 
 ```bash
 wget https://github.com/inhere/go-homepagex/releases/latest/download/homepagex-linux-amd64
+chmod +x homepagex-linux-amd64
+
+# 生成示例配置与页面（默认写到 ~/.config/homepagex），然后启动
+./homepagex-linux-amd64 init -g
+./homepagex-linux-amd64 serve
 ```
 
 ## 项目结构
 
 ```txt
 homepagex/
-├── cmd/homepagex/    # Go 入口（路由注册）
+├── cmd/homepagex/    # Go 入口（CLI 定义 + 路由注册）
 ├── internal/         # Go 后端服务
 │   ├── config.go     # 配置加载与认证规则解析
 │   ├── perm.go       # 权限模型（Resolve 统一鉴权）
@@ -40,6 +45,8 @@ homepagex/
 │   ├── blocks.go     # 按源码行区间做单块编辑
 │   ├── file.go       # 原子写入 / 备份 / 路径校验
 │   ├── handlers.go   # HTTP 处理器
+│   ├── sites.go      # 站点索引与关键词匹配（find / open 用）
+│   ├── scaffold/     # init 用的示例配置与页面模板
 │   └── util.go       # 工具函数（Content-Type、图标下载）
 ├── frontend/         # Svelte 前端
 │   └── build/        # 构建输出（由 Go 服务端提供）
@@ -195,16 +202,19 @@ go build -o homepagex ./cmd/homepagex
 ### 3. 运行
 
 ```bash
-# 使用默认配置（当前目录需要有 config.yaml、pages/、frontend/build）
-./homepagex
+# 生成示例配置与页面
+./homepagex init -g          # 写到全局配置目录（~/.config/homepagex）
+./homepagex init ./my-home   # 也可以写到指定目录
 
-# 指定配置文件（-c/--config 或直接跟位置参数都可以）
-./homepagex -c /path/to/config.yaml
-./homepagex /path/to/config.yaml
+# 启动服务（默认加载 ~/.config/homepagex/config.yaml）
+./homepagex serve
+./homepagex serve -c ./my-home/config.yaml   # 指定配置文件
+./homepagex serve --addr :9090               # 覆盖监听地址
+./homepagex serve --mode debug               # 覆盖运行模式
 
-# 覆盖监听地址 / 运行模式
-./homepagex --addr :9090
-./homepagex -mode debug
+# 按关键词找站点 / 打开站点
+./homepagex find grafana       # 列出匹配的站点（多个关键词需同时命中）
+./homepagex open grafana       # 唯一匹配才打开浏览器，匹配到多个只列出
 
 # 查看版本与帮助
 ./homepagex -V
@@ -213,14 +223,26 @@ go build -o homepagex ./cmd/homepagex
 
 命令行选项：
 
+**全局选项**（写在子命令前面）
+
 | 选项 | 说明 |
 |------|------|
-| `-c`, `--config` | 配置文件路径（默认 `config.yaml`） |
-| `--addr` | 监听地址，覆盖配置里的 `server.port`，如 `:9090` |
-| `-mode` | 覆盖 `server.mode`（`debug` / `release`） |
-| `-V`, `-v`, `-version` | 打印版本后退出 |
-| `-h` | 打印帮助 |
+| `-c`, `--config` | 配置文件路径（默认 `<配置目录>/config.yaml`） |
+| `--config-dir` | 配置目录，默认 `$HOMEPAGEX_CONFIG_DIR` 或 `~/.config/homepagex` |
+| `-V`, `-v`, `--version` | 打印版本后退出 |
+| `-h`, `--help` | 打印帮助 |
 
+**子命令**
+
+| 命令 | 说明 |
+|------|------|
+| `serve`（别名 `s`） | 启动服务；`--addr` 覆盖 `server.port`，`--mode` 覆盖 `server.mode` |
+| `init` | 生成示例配置与页面；`-g` 写到全局配置目录，`-f` 覆盖已存在文件，后可跟一个目标目录 |
+| `find`（别名 `f`） | 按关键词列出匹配的站点 |
+| `open`（别名 `o`） | 按关键词打开站点，唯一匹配时才打开浏览器 |
+
+> 配置文件查找顺序：`-c` 指定 → `<配置目录>/config.yaml` → 当前目录的 `config.yaml`（兼容发布包布局，会打印提示）。
+> 配置里的 `pages_dir` / `frontend_dir` 相对路径按**配置文件所在目录**解析，因此在任意目录下 `serve` 都能找到页面。
 > 配置文件读不到时会回退到内置默认配置（匿名只读、`./pages`、`./frontend/build`）；
 > 文件存在但内容非法（如权限后缀写错）会直接报错退出，不会静默带错配置启动。
 

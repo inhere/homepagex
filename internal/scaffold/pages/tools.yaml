@@ -1,0 +1,35 @@
+# 示例页面：工具页（/tools）
+# 页面名取自文件名，这里是 tools.yaml -> 访问 /tools
+title: "Tools"
+subtitle: "常用工具"
+theme: "ocean-depths"
+style: "cards"
+columns: "3"
+
+services:
+  - name: "开发"
+    icon: "fas fa-code"
+    items:
+      - name: "Jenkins"
+        logo: "icons-local/dashboard-icons/png/jenkins.png"
+        subtitle: "CI/CD 平台（示例地址）"
+        tags: ["dev", "ci"]
+        url: "https://jenkins.example.com"
+        target: "_blank"
+
+      - name: "SonarQube"
+        logo: "icons-local/dashboard-icons/png/sonarqube.png"
+        subtitle: "代码质量（示例地址）"
+        tags: ["dev"]
+        url: "https://sonarqube.example.com"
+        target: "_blank"
+
+  - name: "监控"
+    icon: "fas fa-chart-line"
+    items:
+      - name: "Uptime Kuma"
+        logo: "icons-local/dashboard-icons/png/uptime-kuma.png"
+        subtitle: "可用性监控（示例地址）"
+        tags: ["监控"]
+        url: "https://uptime.example.com"
+        target: "_blank"
