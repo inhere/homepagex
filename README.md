@@ -11,7 +11,7 @@
 - **内置过滤**: 支持按标题，描述，标签过滤服务项
 - **权限体系**: 按路径的 `rw`/`ro`/`no` 权限、`!` 认证墙、`deny` 硬拒绝，页面编辑入口按权限显示
 - **色彩模式**: 亮色 / 暗色 / 跟随系统（默认）三选一，与 6 个主题独立组合
-- **图标本地缓存**: `icons-local/...` 首次访问自动从 CDN 下载并缓存
+- **图标本地缓存**: `icons-local/...` 首次访问自动从 CDN 下载并缓存（`icons_remote: false` 可完全离线）
 - **FontAwesome 图标**: 支持 FontAwesome 图标
 - **响应式设计**: 适配桌面和移动设备
 
@@ -40,6 +40,57 @@ chmod +x homepagex-linux-amd64
 ./homepagex-linux-amd64 serve
 ```
 
+## 离线 / 内网单文件部署
+
+前端资源已经内嵌进二进制（Makefile 的构建目标都会带上 `-tags embedfrontend`），
+所以部署只需要 **二进制 + config.yaml + pages 目录**，不再需要 `frontend/build`。
+
+```bash
+# 1. 在有网的机器上构建（会先 `pnpm run build`，再把前端内嵌进二进制）
+make build-linux                 # → dist/homepagex-linux-amd64
+
+# 2. 拷到内网机器
+scp dist/homepagex-linux-amd64 inner-host:/opt/homepagex/
+
+# 3. 在内网机器上生成配置与页面，然后启动
+ssh inner-host
+cd /opt/homepagex
+./homepagex-linux-amd64 init .                       # 生成 config.yaml + pages 示例
+./homepagex-linux-amd64 -c /opt/homepagex/config.yaml serve
+```
+
+离线环境的配置要点：
+
+```yaml
+# 不访问任何外网地址：未缓存的图标直接 404，页面不会有 CDN 超时等待
+icons_remote: false
+# 图标缓存目录（相对配置文件所在目录），需要可写
+icons_dir: "./icons-cache"
+# 指向不存在的目录也可以，此时自动使用二进制内嵌的前端资源
+frontend_dir: "./frontend/build"
+```
+
+- 启动日志里 `Frontend source:` 会明确告诉你是用磁盘目录还是内嵌资源。
+- 想以后覆盖内嵌的前端，把 `frontend_dir` 指向一个含 `index.html` 的目录即可（目录优先）。
+- 保持 `icons_remote: true` 也能用：下载失败的图标会被记住 10 分钟，
+  不会出现「每次刷新都逐个图标等满 5s 超时」；但完全离线建议直接设为 `false`。
+- systemd 示例：
+
+```ini
+[Unit]
+Description=HomePageX dashboard
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/homepagex
+ExecStart=/opt/homepagex/homepagex-linux-amd64 -c /opt/homepagex/config.yaml serve
+Restart=on-failure
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ## 项目结构
 
 ```txt
@@ -54,10 +105,13 @@ homepagex/
 │   ├── file.go       # 原子写入 / 备份 / 路径校验
 │   ├── handlers.go   # HTTP 处理器
 │   ├── sites.go      # 站点索引与关键词匹配（find / open 用）
+│   ├── frontend.go   # 前端资源来源：frontend_dir 优先，否则内嵌资源
 │   ├── scaffold/     # init 用的示例配置与页面模板
 │   └── util.go       # 工具函数（Content-Type、图标下载）
 ├── frontend/         # Svelte 前端
-│   └── build/        # 构建输出（由 Go 服务端提供）
+│   ├── build/        # 构建输出（-tags embedfrontend 时内嵌进二进制）
+│   ├── placeholder/  # 未构建前端时的占位页（默认内嵌，保证 go build/test 可用）
+│   └── assets.go     # 内嵌资源入口
 ├── pages/            # 页面 YAML 配置
 ├── deploy/           # Docker 部署文件
 ├── docs/             # 项目文档
@@ -82,8 +136,23 @@ server:
 # 页面配置文件存放目录
 pages_dir: "./pages"
 
-# 前端构建目录
+# 前端目录：里面有 index.html 时优先用它（开发时改完 pnpm build 立即生效，也能覆盖内嵌资源）；
+# 不存在或没有 index.html 时使用二进制内嵌的前端资源 —— 单文件部署无需该目录
 frontend_dir: "./frontend/build"
+
+# 图标缓存目录（相对配置文件所在目录）。
+# 内嵌的前端资源是只读的，图标缓存必须写在这个可写目录里
+icons_dir: "./icons-cache"
+
+# 是否允许从 CDN 下载缺失的图标
+#   true（默认）：缓存未命中时按 icons_cdn 下载并缓存
+#   false：完全不访问外网（离线 / 内网部署），未缓存的图标直接返回 404
+# 另外：下载失败的图标会被记住 10 分钟，期间不再重试，避免离线时每个请求都等满超时
+icons_remote: true
+
+# 图标 CDN 基础路径：icons-local/{key}/{type}/{name} → {value}{type}/{name}
+icons_cdn:
+  dashboard-icons: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/"
 ```
 
 #### 认证配置
@@ -191,20 +260,20 @@ npm install -g pnpm
 
 ### 2. 构建
 
-推荐直接用 Makefile（会先构建前端，二进制输出到 `dist/`）：
+推荐直接用 Makefile（会先构建前端并把前端内嵌进二进制，输出到 `dist/`）：
 
 ```bash
-make build       # 构建当前平台
+make build       # 构建当前平台（单文件，自带前端资源）
 make build-all   # 交叉编译所有平台
-make release     # 生成发布包（含 frontend/build、pages、config.yaml）
+make release     # 生成发布包（含二进制、pages、config.yaml）
 ```
 
-也可以手动构建：
+也可以手动构建（注意 `-tags embedfrontend`，否则内嵌的是占位页）：
 
 ```bash
 cd frontend && pnpm install && pnpm run build && cd ..
 go mod tidy
-go build -o homepagex ./cmd/homepagex
+go build -tags embedfrontend -o homepagex ./cmd/homepagex
 ```
 
 ### 3. 运行
@@ -216,7 +285,7 @@ go build -o homepagex ./cmd/homepagex
 
 # 启动服务（默认加载 ~/.config/homepagex/config.yaml）
 ./homepagex serve
-./homepagex serve -c ./my-home/config.yaml   # 指定配置文件
+./homepagex -c ./my-home/config.yaml serve   # 指定配置文件（-c 是全局选项，要写在子命令前）
 ./homepagex serve --addr :9090               # 覆盖监听地址
 ./homepagex serve --mode debug               # 覆盖运行模式
 
@@ -301,6 +370,14 @@ pnpm run lint:fix   # 自动修复可修复项
 
 - https://github.com/homarr-labs/dashboard-icons
 - https://selfh.st/icons/
+
+图标访问路径为 `icons-local/{cdn-key}/{type}/{name}`（如 `icons-local/dashboard-icons/png/plex.png`），
+服务端缓存未命中时按 `icons_cdn` 下载并写入 `icons_dir`：
+
+- `icons_remote: false` —— 不访问任何外网，未缓存的图标直接 404（离线/内网部署推荐）
+- 下载失败的图标会被记住 10 分钟，期间不再重试，避免每个请求都等满下载超时
+- 图标的搜索/选择依赖各 CDN 的元数据（在公网上）；离线时编辑弹窗会提示
+  「图标元数据加载失败」，可直接手动填写图标路径，不影响保存
 
 ## 许可证
 

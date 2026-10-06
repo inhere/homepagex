@@ -74,6 +74,10 @@ pnpm run start
 2. Build & run backend: `make build && ./dist/homepagex serve`（或 `go run ./cmd/homepagex serve`）
 3. Access at: `http://localhost:8090`
 
+> `make build` 会带 `-tags embedfrontend` 把 `frontend/build` 内嵌进二进制；
+> 手动 `go build` 不带 tag 时内嵌的是 `frontend/placeholder` 占位页，但只要
+> `frontend_dir` 指向的目录里有 `index.html`，运行时仍会优先用磁盘上的前端。
+
 ## Project Structure
 
 ```
@@ -92,6 +96,7 @@ homepagex/
 │   ├── blocks.go        # Single-block editing by source line range
 │   ├── file.go          # Atomic write / backup / path guard
 │   ├── server.go        # Server struct and utilities
+│   ├── frontend.go      # Frontend asset source: frontend_dir or embedded FS
 │   ├── types.go         # DTO types (LoginInfo, PageDataResponse)
 │   ├── init.go          # PageDataManager initialization
 │   └── util.go          # Helper functions (content-type, icon download)
@@ -102,7 +107,9 @@ homepagex/
 │   │   ├── stores.js    # Svelte stores (state management)
 │   │   └── components/  # Svelte components
 │   ├── public/          # Static assets
-│   ├── build/           # Build output (served by Go)
+│   ├── build/           # Build output (embedded with -tags embedfrontend)
+│   ├── placeholder/     # Fallback page embedded without that tag
+│   ├── assets.go        # Embedded assets entry (Assets())
 │   ├── package.json     # npm dependencies
 │   └── rollup.config.js # Build configuration
 ├── pages/               # Page YAML configurations
@@ -123,6 +130,8 @@ homepagex/
 - **Server**: Simple `http.ServeMux` based server (no framework)
 - **Config**: YAML-based configuration with `goccy/go-yaml`
 - **Auth**: Custom Basic Auth with path-based permission system
+- **Frontend assets**: `internal/frontend.go` serves `frontend_dir` when it contains `index.html`,
+  otherwise the embedded FS (`frontend.Assets()`); icon cache goes to `icons_dir` and never into the read-only embedded FS
 
 ### Frontend (Svelte)
 
@@ -202,7 +211,22 @@ auths:
 deny: []
 
 pages_dir: "./pages"
+
+# 前端目录：里面有 index.html 时优先使用（开发/覆盖内嵌资源）；
+# 不存在或没有 index.html 时使用二进制内嵌的前端资源（单文件部署）
 frontend_dir: "./frontend/build"
+
+# 图标缓存目录（相对配置文件所在目录）。内嵌的前端资源是只读的，缓存必须写这里
+icons_dir: "./icons-cache"
+
+# 是否允许从 CDN 下载缺失的图标：
+#   true（默认）：缓存未命中时按 icons_cdn 下载
+#   false：完全不访问外网（离线/内网部署），未缓存的图标直接 404
+# 下载失败的图标会记入 10 分钟失败缓存，期间不再重试
+icons_remote: true
+
+icons_cdn:
+  dashboard-icons: "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/"
 
 page_defaults:
   theme: "ocean-depths"
@@ -258,7 +282,7 @@ services:
 | `POST /api/page[/{path}]?op=block` | rw | 修改单个块（`update` / `insert` / `delete`），只替换相关行 |
 | `POST /api/login` | No | UI 登录，成功设置会话 cookie |
 | `POST /api/logout` | No | 退出登录，清理会话与 cookie |
-| `GET /icons-local/{path}` | No | 图标本地缓存（缺失时按 `icons_cdn` 下载） |
+| `GET /icons-local/{path}` | No | 图标本地缓存（缓存命中直接返回；未命中且 `icons_remote: true` 时按 `icons_cdn` 下载） |
 
 > 权限按页面路径判定：请求 `/api/page` 时会去掉该前缀再走 `Config.Resolve`。
 > 写操作（非 GET）一律要求已登录且具备 `rw`。
@@ -268,6 +292,12 @@ services:
 - Icons use FontAwesome: `fas fa-icon-name`
 - Logo images can use CDN URLs or local cache
 - `icons-local/dashboard-icons/png/plex.png` → cached from CDN defined in `icons_cdn`
+- 缓存命中：直接读 `icons_dir/{key}/{type}/{name}`，不访问网络
+- 缓存未命中：
+  - `icons_remote: true`（默认）→ 按 `icons_cdn` 下载并写入 `icons_dir`；失败则记入 10 分钟失败缓存，并 302 让浏览器直连 CDN 兜底
+  - `icons_remote: false` → 不访问任何外网，直接 404（离线/内网部署）
+- 前端 `IconSearch` 的元数据来自公网 CDN：请求失败或超时（8s）时只显示提示，不阻塞编辑保存；
+  后端 `icons_remote: false` 时前端不会去请求元数据（`/api/page` 响应里带 `icons_remote`）
 
 ## Themes
 
