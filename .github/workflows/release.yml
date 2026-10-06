@@ -50,7 +50,7 @@ jobs:
           go mod tidy
 
       # make release = build-all + 打包：产物含二进制（已内嵌前端）、config.yaml、pages
-      # 版本号以 Makefile 的 APP_VERSION 为准，发布时用 tag 覆盖（去掉前缀 v）
+      # 发布时用 tag 作为版本号（去掉前缀 v）；本地构建由 Makefile 从 git describe 推导
       - name: Build release packages
         run: |
           make release VERSION="${RELEASE_TAG#v}"

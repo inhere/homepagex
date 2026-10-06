@@ -9,11 +9,10 @@ BINARY  := $(APP)$(GOEXE)
 # Build metadata
 BUILD_TIME := $(shell date +%Y-%m-%dT%H:%M:%S)
 GIT_HASH  := $(shell git rev-parse --short=8 HEAD 2>/dev/null || echo "unknown")
-# 版本号单一来源：升版本只改这一处（cmd/homepagex/main.go 里的 Version 兜底值保持一致）。
-# 打 tag 发布时由 CI 显式传入 tag：`make release VERSION=${RELEASE_TAG#v}`。
-# 不用 `git describe` 自动推导：HEAD 上残留的旧 tag（如 v0.2.1）会把新版本号盖回去。
-APP_VERSION := 0.3.0
-VERSION ?= $(APP_VERSION)
+# 版本号默认从 git 自动推导（去掉前缀 v）：打 tag 的提交得到 tag 版本，其后的提交得到
+# `<tag>-<n>-g<hash>`，工作区有改动时带 `-dirty`。需要时可显式覆盖：`make build VERSION=x.y.z`
+# （CI 发布时传 `VERSION=${RELEASE_TAG#v}`）。发新版本前先打 tag，如 `git tag v0.3.0`。
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo "dev-$(GIT_HASH)")
 
 # 内嵌前端资源：读取 frontend/build（必须先 `pnpm run build`，见 web-dist）。
 # 不带这个 tag 编译出来的二进制只会内嵌 frontend/placeholder 占位页。
