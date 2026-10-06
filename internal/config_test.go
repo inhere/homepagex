@@ -297,20 +297,22 @@ func TestConfigResolveRelativeDirs(t *testing.T) {
 	configFile := filepath.Join(dir, "config.yaml")
 
 	t.Run("相对目录锚定到配置文件所在目录", func(t *testing.T) {
-		cfg := &Config{PagesDir: "./pages", FrontendDir: "frontend/build"}
+		cfg := &Config{PagesDir: "./pages", FrontendDir: "frontend/build", IconsDir: "./icons-cache"}
 		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
 
 		assert.Eq(t, filepath.Join(dir, "pages"), cfg.PagesDir)
 		assert.Eq(t, filepath.Join(dir, "frontend", "build"), cfg.FrontendDir)
+		assert.Eq(t, filepath.Join(dir, "icons-cache"), cfg.IconsDir)
 	})
 
 	t.Run("绝对目录保持不变", func(t *testing.T) {
 		other := t.TempDir()
-		cfg := &Config{PagesDir: other, FrontendDir: other}
+		cfg := &Config{PagesDir: other, FrontendDir: other, IconsDir: other}
 		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
 
 		assert.Eq(t, other, cfg.PagesDir)
 		assert.Eq(t, other, cfg.FrontendDir)
+		assert.Eq(t, other, cfg.IconsDir)
 	})
 
 	t.Run("空值保持为空", func(t *testing.T) {
@@ -319,6 +321,54 @@ func TestConfigResolveRelativeDirs(t *testing.T) {
 
 		assert.Eq(t, "", cfg.PagesDir)
 		assert.Eq(t, "", cfg.FrontendDir)
+		assert.Eq(t, "", cfg.IconsDir)
+	})
+}
+
+// 图标缓存目录：配置里没写时回落到 frontend_dir/icons-local（兼容直接构造 Config 的场景）
+func TestConfigIconCacheDirFallback(t *testing.T) {
+	cfg := &Config{FrontendDir: filepath.Join("root", "frontend", "build")}
+	assert.Eq(t, filepath.Join("root", "frontend", "build", IconLocalPrefix), cfg.IconCacheDir())
+
+	cfg.IconsDir = filepath.Join("root", "icons-cache")
+	assert.Eq(t, filepath.Join("root", "icons-cache"), cfg.IconCacheDir())
+}
+
+// icons_dir / icons_remote：默认值 + 配置覆盖
+func TestLoadConfigIconSettings(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	t.Run("默认允许远程下载，缓存目录默认 icons-cache", func(t *testing.T) {
+		assert.NoErr(t, os.WriteFile(path, []byte("server:\n  port: \"8090\"\n"), 0o644))
+
+		cfg, err := LoadConfig(path)
+		assert.NoErr(t, err)
+		if err != nil {
+			return
+		}
+
+		assert.True(t, cfg.IconsRemote)
+		assert.Eq(t, "./icons-cache", cfg.IconsDir)
+
+		assert.NoErr(t, cfg.ResolveRelativeDirs(path))
+		assert.Eq(t, filepath.Join(dir, "icons-cache"), cfg.IconCacheDir())
+	})
+
+	t.Run("显式关闭远程下载并指定缓存目录", func(t *testing.T) {
+		yamlText := "icons_remote: false\nicons_dir: \"cache/icons\"\n"
+		assert.NoErr(t, os.WriteFile(path, []byte(yamlText), 0o644))
+
+		cfg, err := LoadConfig(path)
+		assert.NoErr(t, err)
+		if err != nil {
+			return
+		}
+
+		assert.False(t, cfg.IconsRemote)
+
+		assert.NoErr(t, cfg.ResolveRelativeDirs(path))
+		assert.Eq(t, filepath.Join(dir, "cache", "icons"), cfg.IconCacheDir())
 	})
 }
 
@@ -335,6 +385,9 @@ func TestLoadConfigMissingFileUsesDefaults(t *testing.T) {
 	assert.Eq(t, "8090", cfg.Server.Port)
 	assert.Eq(t, "./pages", cfg.PagesDir)
 	assert.Eq(t, "./frontend/build", cfg.FrontendDir)
+	// 默认允许从 CDN 下载图标（离线部署可显式关掉）
+	assert.True(t, cfg.IconsRemote)
+	assert.Eq(t, "./icons-cache", cfg.IconsDir)
 
 	// 默认配置是「匿名只读」，必须真的可用（auths 已解析）
 	assert.True(t, cfg.Resolve("", "/", false).Allowed)

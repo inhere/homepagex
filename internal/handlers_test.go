@@ -36,6 +36,11 @@ func newTestServerFixture(t *testing.T, auths []string) (srv *Server, pagefile s
 	}
 	assert.NoErr(t, cfg.parseAuths())
 
+	// 前端来源在 NewServer 时确定（目录优先、否则内嵌资源），
+	// 所以要用目录里的文件，必须在建 Server 之前就把 index.html 准备好
+	assert.NoErr(t, os.MkdirAll(cfg.FrontendDir, 0o755))
+	assert.NoErr(t, os.WriteFile(filepath.Join(cfg.FrontendDir, "index.html"), []byte("<html>fixture</html>"), 0o644))
+
 	Init(cfg)
 	return NewServer(cfg), pagefile, original
 }

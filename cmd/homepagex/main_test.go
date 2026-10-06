@@ -173,6 +173,10 @@ func TestLoadConfigAnchorsRelativeDirs(t *testing.T) {
 	// 相对路径必须锚定到配置文件所在目录，换成任意工作目录都能找到页面
 	assert.Eq(t, filepath.Join(filepath.Dir(configFile), "pages"), config.PagesDir)
 	assert.True(t, fsutil.IsDir(config.PagesDir))
+
+	// 图标缓存目录同理：默认「配置文件所在目录/icons-cache」，而不是可执行文件旁边或进程 CWD
+	assert.Eq(t, filepath.Join(filepath.Dir(configFile), "icons-cache"), config.IconCacheDir())
+	assert.True(t, config.IconsRemote)
 }
 
 func TestInitCommand(t *testing.T) {
