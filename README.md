@@ -21,6 +21,14 @@
 
 ## 快速开始
 
+**使用 Eget 快速安装**
+
+Can quickly install by [inherelab/eget](https://github.com/inherelab/eget)
+
+```bash
+eget install inhere/homepagex
+```
+
 下载 Github release 最新版本:
 
 ```bash
