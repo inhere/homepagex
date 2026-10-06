@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"github.com/goccy/go-yaml"
@@ -24,7 +24,12 @@ func (s *Server) HealthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetIconLocalHandler 图标缓存处理
-// 当 icon 路径以 icons-local/ 开头时，从本地缓存读取，若不存在则下载并缓存
+// 当 icon 路径以 icons-local/ 开头时，从本地缓存读取，若不存在则下载并缓存。
+//
+// 离线/内网部署相关的两点：
+//   - config.icons_remote=false：完全不访问 CDN，缓存未命中直接 404
+//   - 下载失败会记入失败缓存（默认 10 分钟），期间不再重试，
+//     避免离线时每个图标、每次请求都要等满下载超时
 func (s *Server) GetIconLocalHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		s.sendError(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -39,7 +44,7 @@ func (s *Server) GetIconLocalHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 构建本地缓存路径：统一走 safeJoin 做路径安全处理
-	cacheDir := filepath.Join(s.config.FrontendDir, IconLocalPrefix)
+	cacheDir := s.config.IconCacheDir()
 	localPath, err := safeJoin(cacheDir, iconPath)
 	if err != nil {
 		s.debugf("NOTICE invalid icon path %q: %v", iconPath, err)
@@ -47,38 +52,61 @@ func (s *Server) GetIconLocalHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查本地缓存是否存在
-	if _, err := os.Stat(localPath); os.IsNotExist(err) {
-		// 本地不存在，尝试下载
-		iconCdnKey := strutil.BeforeFirst(iconPath, "/")
-		baseRemoteUrl, ok := s.config.IconsCDN[iconCdnKey]
-		if !ok {
-			log.Printf("Icon CDN key %q not found in config.icons_cdn", iconCdnKey)
-			s.sendError(w, "Icon not found", http.StatusNotFound)
+	// 命中本地缓存：直接返回，不访问网络
+	if _, err := os.Stat(localPath); err == nil {
+		data, err := os.ReadFile(localPath)
+		if err != nil {
+			log.Printf("Failed to read cached icon: %v", err)
+			s.sendError(w, "Icon read error", http.StatusInternalServerError)
 			return
 		}
-
-		// IconsCDN[iconCdnKey] 是 CDN 的基础前缀，例如：
-		//   dashboard-icons: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/
-		//   selfhst-icons:   https://cdn.jsdelivr.net/gh/selfhst/icons/
-		// 本地访问路径形如：{cdn-key}/webp/openobserve.webp
-		// 所以拼远程 URL 时需要去掉本地路径中的 {cdn-key}/ 前缀。
-		relPath := strings.TrimPrefix(iconPath, iconCdnKey+"/")
-		remoteURL := baseRemoteUrl + relPath
-
-		log.Printf("Icon cache miss: %s, downloading from: %s", iconPath, remoteURL)
-
-		// 下载文件
-		if err := downloadIconFile(remoteURL, localPath); err != nil {
-			// 下载失败（CDN 抖动、图标名不对等）时不要让整张图 500：
-			// 退回 302 让浏览器直连 CDN 自行兜底。
-			log.Printf("WARN failed to download icon: %v", err)
-			http.Redirect(w, r, remoteURL, http.StatusFound)
-			return
-		}
-
-		log.Printf("Icon cached: %s -> %s", iconPath, localPath)
+		writeIconBytes(w, localPath, data)
+		return
 	}
+
+	iconCdnKey := strutil.BeforeFirst(iconPath, "/")
+	baseRemoteUrl, ok := s.config.IconsCDN[iconCdnKey]
+	if !ok {
+		log.Printf("Icon CDN key %q not found in config.icons_cdn", iconCdnKey)
+		s.sendError(w, "Icon not found", http.StatusNotFound)
+		return
+	}
+
+	// IconsCDN[iconCdnKey] 是 CDN 的基础前缀，例如：
+	//   dashboard-icons: https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/
+	//   selfhst-icons:   https://cdn.jsdelivr.net/gh/selfhst/icons/
+	// 本地访问路径形如：{cdn-key}/webp/openobserve.webp
+	// 所以拼远程 URL 时需要去掉本地路径中的 {cdn-key}/ 前缀。
+	relPath := strings.TrimPrefix(iconPath, iconCdnKey+"/")
+	remoteURL := baseRemoteUrl + relPath
+
+	// 离线模式：不访问任何外网地址，缓存未命中就是 404
+	if !s.config.IconsRemote {
+		s.debugf("NOTICE icon %s not cached and icons_remote=false, skip CDN", iconPath)
+		s.sendError(w, "Icon not cached and icons_remote is false", http.StatusNotFound)
+		return
+	}
+
+	// 静默期内不重试下载，但仍然让浏览器自己去 CDN 碰碰运气（保持原有兜底行为）
+	if s.iconRecentlyFailed(iconPath) {
+		s.debugf("NOTICE icon %s download failed recently, skip retry", iconPath)
+		http.Redirect(w, r, remoteURL, http.StatusFound)
+		return
+	}
+
+	log.Printf("Icon cache miss: %s, downloading from: %s", iconPath, remoteURL)
+
+	// 下载文件
+	if err := downloadIconFile(remoteURL, localPath); err != nil {
+		// 下载失败（CDN 抖动、图标名不对等）时不要让整张图 500：
+		// 记录失败并退回 302 让浏览器直连 CDN 自行兜底。
+		log.Printf("WARN failed to download icon: %v", err)
+		s.markIconFailed(iconPath)
+		http.Redirect(w, r, remoteURL, http.StatusFound)
+		return
+	}
+
+	log.Printf("Icon cached: %s -> %s", iconPath, localPath)
 
 	// 读取并返回本地文件
 	data, err := os.ReadFile(localPath)
@@ -160,6 +188,7 @@ func (s *Server) handlePageGet(w http.ResponseWriter, r *http.Request, path stri
 		Navs:        s.config.FilterNavsByPermission(pageConfig.Navs, username),
 		CanWrite:    acc.CanWrite,
 		IconCDNKeys: s.config.IconCDNKeys(),
+		IconsRemote: s.config.IconsRemote,
 	}
 	if username != "" {
 		resp.UserInfo = &LoginInfo{
@@ -320,48 +349,38 @@ func (s *Server) postPageBlock(w http.ResponseWriter, r *http.Request, path stri
 	})
 }
 
-// StaticFileHandler 静态文件服务
+// StaticFileHandler 静态文件服务（前端应用）
+//
+// 资源来源见 resolveFrontendFS：frontend_dir 目录优先，其次内嵌资源，
+// 所以单文件部署（只有二进制 + 配置 + 页面）也能正常返回前端。
 func (s *Server) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
-	// 路径安全统一交给 safeJoin（清理 + 归属校验），不再自己 TrimLeft 后 Join
-	path := r.URL.Path
-	if path == "" || path == "/" {
-		path = "index.html"
-	}
+	f, name, ok := s.openFrontendFile(r.URL.Path)
 
-	fullPath, err := safeJoin(s.config.FrontendDir, path)
+	// 文件不存在且请求路径没有扩展名（如 /tools）→ 交回前端路由，返回 index.html
+	if !ok && path.Ext(r.URL.Path) == "" {
+		f, name, ok = s.openFrontendFile(frontendIndex)
+	}
+	if !ok {
+		// 逐请求的静态资源日志太吵，只在 debug 模式打印
+		s.debugf("NOTICE File not found: %s", r.URL.Path)
+		s.sendError(w, "File not found", http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
 	if err != nil {
-		s.debugf("NOTICE invalid static path: %s (%v)", r.URL.Path, err)
+		s.debugf("NOTICE File not found: %s (%v)", r.URL.Path, err)
 		s.sendError(w, "File not found", http.StatusNotFound)
 		return
 	}
 
-	// 目录 → 目录下的 index.html；不存在且无扩展名 → 交回前端路由
-	info, statErr := os.Stat(fullPath)
-	if statErr == nil && info.IsDir() {
-		fullPath = filepath.Join(fullPath, "index.html")
-	} else if statErr != nil {
-		if filepath.Ext(path) != "" {
-			// 逐请求的静态资源日志太吵，只在 debug 模式打印
-			s.debugf("NOTICE File not found: %s", fullPath)
-			s.sendError(w, "File not found", http.StatusNotFound)
-			return
-		}
+	s.debugf("Request static: %s, Serving file: %s", r.URL.Path, name)
 
-		indexPath, ierr := safeJoin(s.config.FrontendDir, "index.html")
-		if ierr != nil {
-			s.sendError(w, "File not found", http.StatusNotFound)
-			return
-		}
-		fullPath = indexPath
-	}
-
-	s.debugf("Request static: %s, Serving file: %s", r.URL.Path, fullPath)
-
-	// 设置正确的 Content-Type
-	contentType := getContentType(fullPath)
-	w.Header().Set("Content-Type", contentType)
-
-	http.ServeFile(w, r, fullPath)
+	// 显式设置 Content-Type（含 .woff2/.webp 这些 mime 表里没有的类型），
+	// ServeContent 见到已有 Content-Type 就会保留
+	w.Header().Set("Content-Type", getContentType(name))
+	http.ServeContent(w, r, name, info.ModTime(), f)
 }
 
 // getPageRawContent 获取页面原始 YAML 内容（内部方法）

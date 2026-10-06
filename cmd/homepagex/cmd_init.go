@@ -75,15 +75,17 @@ func runInit(c *capp.Cmd) error {
 	}
 
 	// 下一步提示
+	// 注意：-c 是应用级选项，必须写在子命令前面（`serve -c` 会报 flag provided but not defined）
 	configFile := filepath.Join(target, defaultConfigFile)
 	if initOpts.Global {
 		cliutil.Infoln("下一步: 运行 `homepagex serve`（将加载", configFile+"）")
 	} else {
-		cliutil.Infoln("下一步: 运行 `homepagex serve -c", configFile+"`")
+		cliutil.Infoln("下一步: 运行 `homepagex -c", configFile+" serve`")
 	}
 
-	if initOpts.Global && !hasIndexHTML(filepath.Join(target, "frontend", "build")) {
-		cliutil.Warnln("提示: 发布包会自动使用二进制旁边的前端；源码运行时请先执行 `pnpm --dir frontend run build`，再把配置里的 frontend_dir 指过来")
+	if initOpts.Global {
+		cliutil.Infoln("提示: 单文件部署无需前端目录，二进制内已内嵌前端资源；",
+			"\n       源码运行（或想覆盖内嵌资源）时先执行 `pnpm --dir frontend run build`，再把配置里的 frontend_dir 指过去")
 	}
 	return nil
 }

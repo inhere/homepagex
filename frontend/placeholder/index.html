@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HomePageX - 前端资源未内嵌</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 48px 24px;
+        font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+        background: #0f1720;
+        color: #e6edf3;
+      }
+      main {
+        max-width: 680px;
+        margin: 0 auto;
+        line-height: 1.7;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      code {
+        padding: 2px 6px;
+        border-radius: 4px;
+        background: #1c2733;
+        color: #7ee787;
+      }
+      pre {
+        padding: 12px;
+        border-radius: 6px;
+        background: #1c2733;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>前端资源未内嵌到这个二进制里</h1>
+      <p>
+        这是占位页面。当前二进制在编译时没有带上 <code>-tags embedfrontend</code>，
+        因此内嵌的是占位资源，而不是真正的前端界面。
+      </p>
+      <p>两种修复方式（任选其一）：</p>
+      <pre>make build                 # 先构建前端，再带 -tags embedfrontend 编译
+
+# 或者：自己构建前端，并让 frontend_dir 指向构建产物
+pnpm --dir frontend run build
+go build -tags embedfrontend -o homepagex ./cmd/homepagex</pre>
+      <p>
+        运行时只要配置里的 <code>frontend_dir</code> 指向的目录里存在
+        <code>index.html</code>，就会优先使用该目录，内嵌资源仅作兜底。
+      </p>
+    </main>
+    <script src="bundle.js"></script>
+  </body>
+</html>

@@ -57,6 +57,12 @@ type Config struct {
 	FrontendDir string       `yaml:"frontend_dir"`
 	// 图标 CDN 配置 see https://dashboardicons.com/ 搜索
 	IconsCDN map[string]string `yaml:"icons_cdn"`
+	// IconsDir 图标缓存目录。默认「配置文件所在目录/icons-cache」，
+	// 离线部署时指向一个可写的持久化目录即可；不会写进内嵌的前端资源里。
+	IconsDir string `yaml:"icons_dir"`
+	// IconsRemote 是否允许从 CDN 下载缺失的图标（默认 true）。
+	// 设为 false 时完全不访问外网，缓存未命中的图标直接返回 404。
+	IconsRemote bool `yaml:"icons_remote"`
 	// basic 认证配置，格式：user:pass@path:perm,path2:perm2
 	Auths []string `yaml:"auths"`
 	// deny 硬拒绝路径：任何人都不能访问，用于临时下线页面等
@@ -97,6 +103,8 @@ func newDefaultConfig() *Config {
 		Auths:       []string{"@*"}, // 所有路径可访问，无需认证
 		PagesDir:    "./pages",
 		FrontendDir: "./frontend/build",
+		IconsDir:    "./icons-cache",
+		IconsRemote: true,
 	}
 }
 
@@ -139,6 +147,9 @@ func LoadConfig(path string) (*Config, error) {
 	if config.FrontendDir == "" {
 		config.FrontendDir = "./frontend/build"
 	}
+	if config.IconsDir == "" {
+		config.IconsDir = "./icons-cache"
+	}
 
 	// 归一化并校验 cookie_secure：写错就启动失败，避免静默回退成另一种语义
 	mode, ok := normalizeCookieSecure(config.Server.CookieSecure)
@@ -153,7 +164,7 @@ func LoadConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-// ResolveRelativeDirs 把 pages_dir / frontend_dir 里的相对路径按「配置文件所在目录」解析。
+// ResolveRelativeDirs 把 pages_dir / frontend_dir / icons_dir 里的相对路径按「配置文件所在目录」解析。
 //
 // 全局配置（~/.config/homepagex/config.yaml）会在任意工作目录下被加载，
 // 若仍以进程 CWD 为基准，./pages 就会指向别处 —— 换个目录启动就找不到页面了。
@@ -164,13 +175,25 @@ func (c *Config) ResolveRelativeDirs(configPath string) error {
 	}
 
 	baseDir := filepath.Dir(absFile)
-	for _, dir := range []*string{&c.PagesDir, &c.FrontendDir} {
+	for _, dir := range []*string{&c.PagesDir, &c.FrontendDir, &c.IconsDir} {
 		if *dir == "" || filepath.IsAbs(*dir) {
 			continue
 		}
 		*dir = filepath.Join(baseDir, *dir)
 	}
 	return nil
+}
+
+// IconCacheDir 返回图标缓存目录。
+//
+// 优先用 icons_dir；没配置时回落到 frontend_dir/icons-local
+// （保持「直接构造 Config」的历史行为），正常经 LoadConfig + ResolveRelativeDirs
+// 加载的配置一定有值。
+func (c *Config) IconCacheDir() string {
+	if c.IconsDir != "" {
+		return c.IconsDir
+	}
+	return filepath.Join(c.FrontendDir, IconLocalPrefix)
 }
 
 // parseAuths 解析 auths / deny 配置，产出归一化规则。

@@ -49,11 +49,11 @@ jobs:
         run: |
           go mod tidy
 
-      # make release = build-all + 打包：产物含二进制、config.yaml、pages、frontend/build
-      # （homepagex 从磁盘读取 frontend_dir / pages_dir，只有二进制跑不起来）
+      # make release = build-all + 打包：产物含二进制（已内嵌前端）、config.yaml、pages
+      # 版本号以 Makefile 的 APP_VERSION 为准，发布时用 tag 覆盖（去掉前缀 v）
       - name: Build release packages
         run: |
-          make release
+          make release VERSION="${RELEASE_TAG#v}"
 
       - name: Verify version flag
         run: |

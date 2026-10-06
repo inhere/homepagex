@@ -29,6 +29,16 @@
   let activeSourceId = '';
   let sourceCache = {};
 
+  // 元数据都在 CDN 上：离线/内网环境可能一直不返回，必须加超时，
+  // 否则编辑表单会一直卡在「加载图标中」（请求挂起、loading 不落地）。
+  const META_TIMEOUT_MS = 8000;
+  const MANUAL_HINT =
+    '可手动填写图标路径，例如 icons-local/dashboard-icons/png/plex.png';
+
+  // 服务端是否允许访问 CDN（config.yaml 的 icons_remote）。
+  // false 时后端不会下载图标，前端也就不必去拉 CDN 元数据了。
+  $: remoteEnabled = $pageConfig.icons_remote !== false;
+
   // 只展示「已配置 + 有元数据地址」的来源
   $: sources = ($pageConfig.icon_cdn_keys || [])
     .map((key) => {
@@ -42,6 +52,17 @@
       };
     })
     .filter((s) => s.metaUrl);
+
+  // fetchWithTimeout 给元数据请求加超时，避免不可达的 CDN 把请求挂死
+  async function fetchWithTimeout(url) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), META_TIMEOUT_MS);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   function getActiveSource() {
     return sources.find((s) => s.id === activeSourceId) || sources[0] || null;
@@ -128,8 +149,8 @@
       if (sourceCache[source.id]) {
         icons = sourceCache[source.id];
       } else {
-        const response = await fetch(source.metaUrl);
-        if (!response.ok) throw new Error('Failed to load icons');
+        const response = await fetchWithTimeout(source.metaUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
         const metadata = await response.json();
         const normalized = normalizeMetadata(source, metadata).map((icon) => ({
@@ -147,13 +168,23 @@
 
       filteredIcons = icons.slice(0, 20);
     } catch (err) {
-      error = err.message;
+      // 离线/内网时这里几乎必然失败：给出可操作的提示，而不是把表单卡在加载中
+      error =
+        err.name === 'AbortError'
+          ? `图标元数据加载超时（${META_TIMEOUT_MS / 1000}s），网络不可达。${MANUAL_HINT}`
+          : `图标元数据加载失败：${err.message}。${MANUAL_HINT}`;
     } finally {
       loading = false;
     }
   }
 
   onMount(async () => {
+    // 后端已关闭远程图标：不必（也不应该）去请求 CDN
+    if (!remoteEnabled) {
+      error = `服务端已关闭远程图标（icons_remote: false），无法在线搜索图标。${MANUAL_HINT}`;
+      return;
+    }
+
     const source = getActiveSource();
     if (!source) {
       error = '未配置图标 CDN（config.yaml 的 icons_cdn）';
@@ -164,7 +195,7 @@
   });
 
   async function handleSourceChange(id) {
-    if (id === activeSourceId) return;
+    if (id === activeSourceId || !remoteEnabled) return;
     activeSourceId = id;
     searchQuery = '';
     await loadIconsForSource(getActiveSource());
@@ -413,6 +444,8 @@
 
   .error-state {
     color: var(--danger-ink);
+    text-align: center;
+    line-height: 1.6;
   }
 
   .icon-grid-container::-webkit-scrollbar {

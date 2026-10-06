@@ -9,6 +9,7 @@ import (
 	"github.com/gookit/goutil/cflag/capp"
 	"github.com/gookit/goutil/cliutil"
 	"github.com/gookit/goutil/fsutil"
+	"github.com/inhere/homepagex/frontend"
 	"github.com/inhere/homepagex/internal"
 )
 
@@ -51,9 +52,18 @@ func runServe(c *capp.Cmd) error {
 		cliutil.Infoln("提示: 使用可执行文件旁的前端目录", dir)
 		config.FrontendDir = dir
 	}
-	if !hasIndexHTML(config.FrontendDir) {
-		cliutil.Warnln("警告: 前端目录里没有 index.html:", config.FrontendDir,
+
+	// 前端来源：目录里有 index.html 就用目录（便于开发与覆盖），否则用内嵌资源（单文件部署）
+	frontendSource := "内嵌资源（embedded）"
+	if hasIndexHTML(config.FrontendDir) {
+		frontendSource = config.FrontendDir
+	} else {
+		cliutil.Infoln("提示: 前端目录", config.FrontendDir, "里没有 index.html，改用内嵌前端资源",
 			"\n       源码运行请执行 `pnpm --dir frontend run build`，或修改配置里的 frontend_dir")
+		if !frontend.Embedded {
+			cliutil.Warnln("警告: 该二进制内嵌的是占位页（编译时未带 -tags embedfrontend）",
+				"\n       请用 `make build` 重新编译，或让 frontend_dir 指向 pnpm 的构建产物")
+		}
 	}
 	if !fsutil.IsDir(config.PagesDir) {
 		cliutil.Warnln("警告: 页面目录不存在:", config.PagesDir, "\n       可运行 `homepagex init` 生成示例页面，或修改配置里的 pages_dir")
@@ -68,7 +78,8 @@ func runServe(c *capp.Cmd) error {
 	log.Printf("🚀 homepagex %s starting on http://localhost%s", Version, addr)
 	log.Printf("Config file: %s", configPath)
 	log.Printf("Page data directory: %s", config.PagesDir)
-	log.Printf("Frontend directory: %s", config.FrontendDir)
+	log.Printf("Frontend source: %s", frontendSource)
+	log.Printf("Icon cache directory: %s (icons_remote=%v)", config.IconCacheDir(), config.IconsRemote)
 	log.Printf("Mode: %s", config.Server.Mode)
 
 	return http.ListenAndServe(addr, mux)

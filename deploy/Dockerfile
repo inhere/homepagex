@@ -25,9 +25,13 @@ RUN go mod download
 
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
+# internal 依赖 frontend 包（内嵌资源入口），必须一起拷进构建阶段
+COPY frontend/*.go ./frontend/
+# 内嵌前端产物：与 Makefile 一致，用 -tags embedfrontend 读取 frontend/build
+COPY --from=frontend-builder /app/build/ ./frontend/build/
 
-ARG VERSION=dev
-RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=${VERSION}" -o homepagex ./cmd/homepagex
+ARG VERSION=0.3.0
+RUN CGO_ENABLED=0 go build -trimpath -tags embedfrontend -ldflags "-s -w -X main.Version=${VERSION}" -o homepagex ./cmd/homepagex
 
 # ---------- 3. 运行 ----------
 FROM alpine:latest
@@ -37,8 +41,8 @@ WORKDIR /app
 # 图标缓存与远程下载需要 CA 证书
 RUN apk --no-cache add ca-certificates
 
+# 前端资源已经内嵌进二进制，运行镜像只需要二进制 + 配置 + 可写的 pages
 COPY --from=backend-builder /app/homepagex ./
-COPY --from=frontend-builder /app/build ./frontend/build
 COPY config.yaml ./
 COPY pages/ ./pages/
 

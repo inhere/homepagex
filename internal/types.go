@@ -17,4 +17,7 @@ type PageDataResponse struct {
 	CanWrite bool `json:"can_write"`
 	// IconCDNKeys 已配置的图标 CDN key，前端据此拼 icons-local/{key}/... 使用本地缓存
 	IconCDNKeys []string `json:"icon_cdn_keys,omitempty"`
+	// IconsRemote 服务端是否允许从 CDN 下载图标（配置 icons_remote）。
+	// false 时前端不要再去拉 CDN 元数据，否则离线环境会一直卡在加载中。
+	IconsRemote bool `json:"icons_remote"`
 }

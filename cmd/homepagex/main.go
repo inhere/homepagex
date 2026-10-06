@@ -8,9 +8,10 @@ import (
 	"github.com/inhere/homepagex/internal"
 )
 
-// 构建信息，由 Makefile / CI 通过 -ldflags -X main.xxx 注入
+// 构建信息。Version 是源码内置的兜底版本（本地 `go build` 时用），
+// 发布构建由 Makefile / CI 通过 -ldflags -X main.Version=... 注入。
 var (
-	Version   = "dev"
+	Version   = "0.3.0"
 	GitCommit = "unknown"
 	BuildDate = "unknown"
 )
