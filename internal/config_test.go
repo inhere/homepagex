@@ -297,21 +297,23 @@ func TestConfigResolveRelativeDirs(t *testing.T) {
 	configFile := filepath.Join(dir, "config.yaml")
 
 	t.Run("相对目录锚定到配置文件所在目录", func(t *testing.T) {
-		cfg := &Config{PagesDir: "./pages", FrontendDir: "frontend/build", IconsDir: "./icons-cache"}
+		cfg := &Config{PagesDir: "./pages", FrontendDir: "frontend/build", StaticDir: "./static", IconsDir: "./icons-cache"}
 		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
 
 		assert.Eq(t, filepath.Join(dir, "pages"), cfg.PagesDir)
 		assert.Eq(t, filepath.Join(dir, "frontend", "build"), cfg.FrontendDir)
+		assert.Eq(t, filepath.Join(dir, "static"), cfg.StaticDir)
 		assert.Eq(t, filepath.Join(dir, "icons-cache"), cfg.IconsDir)
 	})
 
 	t.Run("绝对目录保持不变", func(t *testing.T) {
 		other := t.TempDir()
-		cfg := &Config{PagesDir: other, FrontendDir: other, IconsDir: other}
+		cfg := &Config{PagesDir: other, FrontendDir: other, StaticDir: other, IconsDir: other}
 		assert.NoErr(t, cfg.ResolveRelativeDirs(configFile))
 
 		assert.Eq(t, other, cfg.PagesDir)
 		assert.Eq(t, other, cfg.FrontendDir)
+		assert.Eq(t, other, cfg.StaticDir)
 		assert.Eq(t, other, cfg.IconsDir)
 	})
 
@@ -321,6 +323,7 @@ func TestConfigResolveRelativeDirs(t *testing.T) {
 
 		assert.Eq(t, "", cfg.PagesDir)
 		assert.Eq(t, "", cfg.FrontendDir)
+		assert.Eq(t, "", cfg.StaticDir)
 		assert.Eq(t, "", cfg.IconsDir)
 	})
 }

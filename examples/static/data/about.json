@@ -1,5 +1,6 @@
 {
   "name": "HomePageX",
+  "source": "external static directory",
   "description": "轻量级导航主页",
   "features": ["YAML 页面", "iframe 内容页", "独立 HTML 页面"]
 }

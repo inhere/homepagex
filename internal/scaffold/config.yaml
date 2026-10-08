@@ -46,6 +46,10 @@ pages_dir: "./pages"
 #     配置 + pages）时无需前端目录，这一项留空或指向不存在的目录都可以
 frontend_dir: "./frontend/build"
 
+# 发布后可直接添加 HTML/JSON 等文件到此目录，无需源码、前端构建或重新编译。
+# 与前端文件同名时保留原前端文件；相对本配置文件所在目录，留空则关闭。
+static_dir: "./static"
+
 # 页面默认配置，所有页面都继承，可在页面文件里覆盖
 page_defaults:
   title: "My Homepage"

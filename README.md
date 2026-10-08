@@ -68,6 +68,10 @@ icons_remote: false
 icons_dir: "./icons-cache"
 # 指向不存在的目录也可以，此时自动使用二进制内嵌的前端资源
 frontend_dir: "./frontend/build"
+
+# 外部补充资源目录：发布后可直接添加 HTML/JSON，不替换内嵌的前端骨架。
+# 相对配置文件所在目录；留空或省略时关闭。
+static_dir: "./static"
 ```
 
 - 启动日志里 `Frontend source:` 会明确告诉你是用磁盘目录还是内嵌资源。
@@ -240,9 +244,11 @@ services:
 
 菜单的 `mode` 支持三种方式：省略或 `yaml` 使用原来的 YAML 页面；`iframe` 保留头部、
 菜单、主题与页脚，在内容区展示 HTML；`page` 跳转到完整的独立页面。
-可配置在全局 `page_navs` 或某页面 YAML 的 `navs` 中：
+`static_dir` 配置在主配置 `config.yaml` 中；菜单可配置在全局 `page_navs` 或某页面 YAML 的 `navs` 中：
 
 ```yaml
+static_dir: "./static"
+
 page_navs:
   - name: "Home"
     icon: "fas fa-home"
@@ -258,10 +264,14 @@ page_navs:
     # target: "_blank"  # 可选：在新标签页打开，默认在当前页打开
 ```
 
-- 源码部署：将 HTML 和 JSON 放到 `frontend/public/` 后执行 `pnpm --dir frontend run build`。
-  示例 `about.html` 会用 `fetch('./data/about.json')` 读取同站点 JSON；构建后的内嵌前端也包含它们。
-- 已有磁盘前端：将文件添加到 `frontend_dir` 指定的目录，保留原来的 `index.html`、JS 和 CSS，
-  不需要改动 `pages_dir`。只配置一个新的 HTML 目录会替换整个前端，不能自动保留导航骨架。
+- 独立二进制部署：配置 `static_dir: "./static"` 后，把 HTML/JSON 放进该目录即可。
+  路径相对 **config.yaml 所在目录**；不需要源码、Node、前端构建，也不需要重新编译二进制。
+  `static/about.html` 对应 `/about.html`，`static/data/about.json` 对应 `/data/about.json`。
+- 目录不要求 `index.html`。原前端资源优先，`static_dir` 只补充缺失文件，不会覆盖骨架；
+  `/api/page`、`/api/login`、`/api/logout`、`/icons-local/` 等已注册路由仍由原处理器处理。
+- 可参考 `examples/static/`：`about.html` 使用 `fetch('./data/about.json')` 读取外部 JSON。
+  文件每次请求时从磁盘读取，修改后刷新即可生效；修改 `static_dir` 配置需要重启服务。
+- `frontend_dir` 仍用于替换整套前端，添加自定义页面时使用 `static_dir` 即可。
 - iframe 的选中状态保存在当前 YAML 页面 URL 的 `view` 查询参数中，例如
   `/?view=%2Fabout.html`；刷新、浏览器前进后退可以恢复嵌入页。直接访问 `/about.html` 则打开独立页面。
 - iframe 内容由独立文档渲染，HTML 自己负责样式与脚本，不会自动继承骨架主题。

@@ -58,6 +58,8 @@ type Config struct {
 	Server      ServerConfig `yaml:"server"`
 	PagesDir    string       `yaml:"pages_dir"`
 	FrontendDir string       `yaml:"frontend_dir"`
+	// StaticDir 为内嵌/磁盘前端补充外部 HTML、JSON 等文件；为空时不启用。
+	StaticDir string `yaml:"static_dir"`
 	// 图标 CDN 配置 see https://dashboardicons.com/ 搜索
 	IconsCDN map[string]string `yaml:"icons_cdn"`
 	// IconsDir 图标缓存目录。默认「配置文件所在目录/icons-cache」，
@@ -167,7 +169,7 @@ func LoadConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-// ResolveRelativeDirs 把 pages_dir / frontend_dir / icons_dir 里的相对路径按「配置文件所在目录」解析。
+// ResolveRelativeDirs 把各资源目录的相对路径按「配置文件所在目录」解析。
 //
 // 全局配置（~/.config/homepagex/config.yaml）会在任意工作目录下被加载，
 // 若仍以进程 CWD 为基准，./pages 就会指向别处 —— 换个目录启动就找不到页面了。
@@ -178,7 +180,7 @@ func (c *Config) ResolveRelativeDirs(configPath string) error {
 	}
 
 	baseDir := filepath.Dir(absFile)
-	for _, dir := range []*string{&c.PagesDir, &c.FrontendDir, &c.IconsDir} {
+	for _, dir := range []*string{&c.PagesDir, &c.FrontendDir, &c.StaticDir, &c.IconsDir} {
 		if *dir == "" || filepath.IsAbs(*dir) {
 			continue
 		}

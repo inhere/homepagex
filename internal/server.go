@@ -26,6 +26,7 @@ type Server struct {
 	config *Config
 	// frontendFS 前端静态资源来源：frontend_dir 目录优先，其次内嵌资源（见 resolveFrontendFS）
 	frontendFS http.FileSystem
+	staticFS   http.FileSystem // 可选的外部补充资源，不覆盖现有前端文件
 
 	// 简单内存会话存储：sessionID -> Session
 	sessions   map[string]*Session
@@ -45,13 +46,17 @@ type Session struct {
 
 // NewServer 创建新的 HTTP 服务器
 func NewServer(config *Config) *Server {
-	return &Server{
+	srv := &Server{
 		config:      config,
 		frontendFS:  resolveFrontendFS(config.FrontendDir),
 		sessions:    make(map[string]*Session),
 		iconFailTTL: defaultIconFailTTL,
 		iconFails:   make(map[string]time.Time),
 	}
+	if config.StaticDir != "" {
+		srv.staticFS = http.Dir(config.StaticDir)
+	}
+	return srv
 }
 
 // sendJSON 发送 JSON 响应

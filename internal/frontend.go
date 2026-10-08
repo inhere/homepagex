@@ -50,8 +50,18 @@ func (s *Server) openFrontendFile(name string) (http.File, string, bool) {
 	if name == "" || name == "." {
 		name = frontendIndex
 	}
+	// 骨架资源优先，外部目录只补充缺失的文件；无需复制或重新构建前端。
+	if f, resolved, ok := openStaticFile(s.frontendFS, name); ok {
+		return f, resolved, true
+	}
+	if s.staticFS != nil {
+		return openStaticFile(s.staticFS, name)
+	}
+	return nil, name, false
+}
 
-	f, err := s.frontendFS.Open(name)
+func openStaticFile(source http.FileSystem, name string) (http.File, string, bool) {
+	f, err := source.Open(name)
 	if err != nil {
 		return nil, name, false
 	}
@@ -69,7 +79,7 @@ func (s *Server) openFrontendFile(name string) (http.File, string, bool) {
 	// 目录 → 目录下的 index.html
 	f.Close()
 	name = path.Join(name, frontendIndex)
-	f, err = s.frontendFS.Open(name)
+	f, err = source.Open(name)
 	if err != nil {
 		return nil, name, false
 	}
