@@ -385,6 +385,10 @@
         on:logged-out={handleLogout}
       />
 
+      {#if $pageConfig.announcement?.trim()}
+        <aside class="announcement" aria-label="公告">{$pageConfig.announcement}</aside>
+      {/if}
+
       {#if $pageConfig.navs && $pageConfig.navs.length > 0}
         <Navbar navs={$pageConfig.navs} currentPath={$currentRoute} currentMode={iframeNav ? 'iframe' : 'yaml'} onNavigate={handleNavigate} />
       {/if}
@@ -566,6 +570,19 @@
   .main-content {
     display: flex;
     gap: 20px;
+  }
+
+  .announcement {
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    line-height: 1.7;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .sidebar {

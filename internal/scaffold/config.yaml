@@ -50,6 +50,13 @@ frontend_dir: "./frontend/build"
 # 与前端文件同名时保留原前端文件；相对本配置文件所在目录，留空则关闭。
 static_dir: "./static"
 
+# 全局备注/公告：非空时在骨架菜单上方显示，保留换行；留空则不显示。
+# 多行示例：
+# announcement: |
+#   公告：本周五晚进行维护。
+#   如有问题，请联系管理员。
+announcement: ""
+
 # 页面默认配置，所有页面都继承，可在页面文件里覆盖
 page_defaults:
   title: "My Homepage"

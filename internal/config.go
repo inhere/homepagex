@@ -60,6 +60,8 @@ type Config struct {
 	FrontendDir string       `yaml:"frontend_dir"`
 	// StaticDir 为内嵌/磁盘前端补充外部 HTML、JSON 等文件；为空时不启用。
 	StaticDir string `yaml:"static_dir"`
+	// Announcement 全局备注/公告，作为纯文本显示在骨架菜单上方。
+	Announcement string `yaml:"announcement"`
 	// 图标 CDN 配置 see https://dashboardicons.com/ 搜索
 	IconsCDN map[string]string `yaml:"icons_cdn"`
 	// IconsDir 图标缓存目录。默认「配置文件所在目录/icons-cache」，

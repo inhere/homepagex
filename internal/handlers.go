@@ -184,11 +184,12 @@ func (s *Server) handlePageGet(w http.ResponseWriter, r *http.Request, path stri
 
 	// 构建响应：过滤导航项 + 附加用户信息
 	resp := &PageDataResponse{
-		PageConfig:  pageConfig,
-		Navs:        s.config.FilterNavsByPermission(pageConfig.Navs, username),
-		CanWrite:    acc.CanWrite,
-		IconCDNKeys: s.config.IconCDNKeys(),
-		IconsRemote: s.config.IconsRemote,
+		PageConfig:   pageConfig,
+		Announcement: s.config.Announcement,
+		Navs:         s.config.FilterNavsByPermission(pageConfig.Navs, username),
+		CanWrite:     acc.CanWrite,
+		IconCDNKeys:  s.config.IconCDNKeys(),
+		IconsRemote:  s.config.IconsRemote,
 	}
 	if username != "" {
 		resp.UserInfo = &LoginInfo{

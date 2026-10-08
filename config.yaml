@@ -54,6 +54,9 @@ frontend_dir: "./frontend/build"
 # 补充 HTML/JSON 等静态文件，无需改源码或替换内嵌前端；相对配置文件所在目录
 static_dir: "./static"
 
+# 全局备注/公告：非空时在骨架菜单上方显示，长文本可用 YAML 的 | 写多行
+announcement: ""
+
 #
 # 页面默认配置
 # 所有页面都继承这些配置，可在页面配置文件中覆盖
