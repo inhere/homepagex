@@ -236,6 +236,38 @@ services:
         target: "_blank"
 ```
 
+## HTML 菜单与 JSON 文件
+
+菜单的 `mode` 支持三种方式：省略或 `yaml` 使用原来的 YAML 页面；`iframe` 保留头部、
+菜单、主题与页脚，在内容区展示 HTML；`page` 跳转到完整的独立页面。
+可配置在全局 `page_navs` 或某页面 YAML 的 `navs` 中：
+
+```yaml
+page_navs:
+  - name: "Home"
+    icon: "fas fa-home"
+    url: "/"
+  - name: "关于"
+    icon: "fas fa-info-circle"
+    url: "/about.html"
+    mode: iframe
+  - name: "关于（独立页面）"
+    icon: "fas fa-external-link-alt"
+    url: "/about.html"
+    mode: page
+    # target: "_blank"  # 可选：在新标签页打开，默认在当前页打开
+```
+
+- 源码部署：将 HTML 和 JSON 放到 `frontend/public/` 后执行 `pnpm --dir frontend run build`。
+  示例 `about.html` 会用 `fetch('./data/about.json')` 读取同站点 JSON；构建后的内嵌前端也包含它们。
+- 已有磁盘前端：将文件添加到 `frontend_dir` 指定的目录，保留原来的 `index.html`、JS 和 CSS，
+  不需要改动 `pages_dir`。只配置一个新的 HTML 目录会替换整个前端，不能自动保留导航骨架。
+- iframe 的选中状态保存在当前 YAML 页面 URL 的 `view` 查询参数中，例如
+  `/?view=%2Fabout.html`；刷新、浏览器前进后退可以恢复嵌入页。直接访问 `/about.html` 则打开独立页面。
+- iframe 内容由独立文档渲染，HTML 自己负责样式与脚本，不会自动继承骨架主题。
+  外部网站需要允许被嵌入；有 `X-Frame-Options` / CSP 限制时请使用 `mode: page`。
+- 菜单仍按已有路径权限过滤，但静态 HTML/JSON 的直接访问仍是公开的，菜单隐藏不等于文件鉴权。
+
 ## 页面配置规则
 
 - `/` 路由对应 `pages/home.yaml`

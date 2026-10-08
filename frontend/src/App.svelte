@@ -24,6 +24,7 @@
   let allTags;
   let showYamlEditor = false;
   let showLoginModal = false;
+  let iframeNav = null;
   // 单块编辑（表单 / 源码）：{ kind, mode, serviceIndex, index }
   let blockEditor = null;
 
@@ -194,7 +195,13 @@
     return false;
   }
 
-  // 加载页面配置
+  // URL 中只恢复当前权限允许的 iframe 菜单。
+  function restoreIframe() {
+    const view = new URLSearchParams(window.location.search).get('view');
+    iframeNav = ($pageConfig.navs || []).find(nav => nav.mode === 'iframe' && nav.url === view) || null;
+    currentRoute.set(iframeNav ? iframeNav.url : getRoute());
+  }
+
   async function loadConfig(route) {
     const currentRoutePath = route || getRoute();
     const seq = ++loadSeq;
@@ -211,7 +218,7 @@
 
     try {
       // 选中态立即更新，不等请求回来
-      currentRoute.set(currentRoutePath);
+      restoreIframe();
 
       const fetchOptions = {
         credentials: 'include',
@@ -240,6 +247,7 @@
       }
 
       pageConfig.set(result.data);
+      restoreIframe();
       userInfo.set(result.data.user_info || null);
       // 新页面数据已就绪，这时再重置过滤条件
       // （搜索框与这里共用同一个 store，所以会一起清空）
@@ -262,11 +270,30 @@
   }
 
   // 处理导航（单页应用）
-  function handleNavigate(route) {
-    if (route !== getRoute()) {
-      history.pushState({}, '', route);
-      loadConfig(route);
+  function handleNavigate(nav, event) {
+    // 独立页面及浏览器的新标签页操作保留原生链接行为。
+    if (nav.mode === 'page' || (nav.target && nav.target !== '_self') || event.button !== 0 ||
+        event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+      return;
     }
+    event.preventDefault();
+    if (nav.mode === 'iframe') {
+      error = null;
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', nav.url);
+      // 保留 YAML 路由，刷新后仍能加载骨架；HTML 的 URL 只用于 iframe src。
+      if (url.href !== window.location.href) history.pushState({}, '', url);
+      iframeNav = nav;
+      currentRoute.set(nav.url);
+    } else if (nav.url !== getRoute() || iframeNav) {
+      iframeNav = null;
+      history.pushState({}, '', nav.url);
+      loadConfig(nav.url);
+    }
+  }
+
+  function handlePopstate() {
+    loadConfig();
   }
 
   onMount(() => {
@@ -281,11 +308,11 @@
     loadConfig();
 
     // 监听浏览器前进后退
-    window.addEventListener('popstate', () => loadConfig());
+    window.addEventListener('popstate', handlePopstate);
 
     return () => {
       mq.removeEventListener('change', onSchemeChange);
-      window.removeEventListener('popstate', loadConfig);
+      window.removeEventListener('popstate', handlePopstate);
     };
   });
 
@@ -325,7 +352,7 @@
   function handleLogout() {
     userInfo.set(null);
     // 退出后跳转到首页并按游客身份重新加载数据
-    if (getRoute() !== '/') {
+    if (getRoute() !== '/' || iframeNav) {
       history.pushState({}, '', '/');
     }
     loadConfig('/');
@@ -359,9 +386,18 @@
       />
 
       {#if $pageConfig.navs && $pageConfig.navs.length > 0}
-        <Navbar navs={$pageConfig.navs} currentPath={$currentRoute} onNavigate={handleNavigate} />
+        <Navbar navs={$pageConfig.navs} currentPath={$currentRoute} currentMode={iframeNav ? 'iframe' : 'yaml'} onNavigate={handleNavigate} />
       {/if}
 
+      {#if iframeNav && !error}
+        {#key iframeNav.url}
+          <iframe
+            title={iframeNav.name || '嵌入页面'}
+            src={iframeNav.url}
+            style="width: 100%; min-height: 65vh; border: 0; border-radius: 12px; background: var(--surface);"
+          ></iframe>
+        {/key}
+      {:else}
       <Toolbar
         onOpenEditor={openYamlEditor}
         onAddService={openNewService}
@@ -408,6 +444,8 @@
           {/if}
         </div>
       </div>
+
+      {/if}
 
       {#if $pageConfig.footer}
         <footer class="footer">

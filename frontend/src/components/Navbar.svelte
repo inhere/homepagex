@@ -1,6 +1,7 @@
 <script>
   export let navs = [];
   export let currentPath = '/';
+  export let currentMode = 'yaml';
   export let onNavigate = () => {};
 </script>
 
@@ -10,14 +11,17 @@
          会直接抛错导致页面白屏，所以这里用下标作 key。导航列表是静态的、条目内部也没有
          状态，用下标不会带来 diff 副作用。 -->
     {#each navs as nav, i (i)}
-      <button
+      <a
         class="nav-item"
-        class:active={currentPath === nav.url}
-        on:click={() => onNavigate(nav.url)}
+        class:active={currentPath === nav.url && (nav.mode || 'yaml') === currentMode}
+        href={nav.url}
+        target={nav.target || undefined}
+        rel={nav.target === '_blank' ? 'noopener noreferrer' : undefined}
+        on:click={(event) => onNavigate(nav, event)}
       >
         <i class={nav.icon}></i>
         <span>{nav.name}</span>
-      </button>
+      </a>
     {/each}
   </div>
 </nav>

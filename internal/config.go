@@ -35,6 +35,9 @@ type NavItem struct {
 	Name string `yaml:"name" json:"name"`
 	Icon string `yaml:"icon" json:"icon"`
 	URL  string `yaml:"url" json:"url"`
+	// Mode: 空值/yaml 加载 YAML 页面；iframe 在骨架内嵌入；page 使用普通链接。
+	Mode   string `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Target string `yaml:"target,omitempty" json:"target,omitempty"`
 }
 
 // PageDefaults 页面默认配置

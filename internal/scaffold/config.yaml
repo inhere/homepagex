@@ -60,3 +60,9 @@ page_navs:
   - name: "Tools"
     icon: "fas fa-tools"
     url: "/tools"
+  # HTML 示例（保留默认 YAML 菜单，按需取消注释）
+  # - name: "关于"
+  #   icon: "fas fa-info-circle"
+  #   url: "/about.html"
+  #   mode: iframe  # iframe: 骨架内展示；page: 完整独立页面；省略: YAML
+  #   target: "_blank"  # 可选：新标签页打开独立文档
