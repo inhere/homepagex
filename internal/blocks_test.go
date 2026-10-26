@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/goccy/go-yaml"
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 // blockTestYAML 带注释与空行的页面配置，用于验证按块编辑不会破坏其余内容

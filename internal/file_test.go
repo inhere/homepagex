@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/goccy/go-yaml"
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 func TestWriteFileAtomic(t *testing.T) {

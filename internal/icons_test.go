@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 // newIconTestServer 构造一个带「假 CDN」的 Server，并返回 CDN 被请求的次数计数器。

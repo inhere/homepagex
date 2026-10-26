@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 const testHomeYAML = "title: \"Home\"\nservices:\n  - name: \"Media\"\n    items:\n      - name: \"Plex\"\n        url: \"https://plex.example.com\"\n"

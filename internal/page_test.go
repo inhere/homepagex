@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 func newTestPageManager(t *testing.T, files map[string]string) *PageDataManager {

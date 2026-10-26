@@ -3,7 +3,7 @@ package internal
 import (
 	"testing"
 
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 // newPermConfig 构造一个用于权限测试的 Config

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gookit/goutil/testutil/assert"
+	"github.com/gookit/goutil/x/assert"
 )
 
 // newStaticTestServer 构造一个只关心静态资源来源的 Server。
