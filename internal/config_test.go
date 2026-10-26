@@ -237,6 +237,7 @@ func TestNormalizePattern(t *testing.T) {
 		{"/inner*", "/inner", rulePrefix},
 		{"inner*", "/inner", rulePrefix},
 		{"/a/b/c", "/a/b/c", ruleSubtree},
+		{"/Reports*", "/reports", rulePrefix},
 	}
 
 	for _, tt := range tests {
@@ -244,6 +245,16 @@ func TestNormalizePattern(t *testing.T) {
 			pat, kind := normalizePattern(tt.raw)
 			assert.Eq(t, tt.wantPat, pat)
 			assert.Eq(t, tt.wantKind, kind)
+		})
+	}
+}
+
+func TestResolveNormalizesRequestPathCase(t *testing.T) {
+	c := newPermConfig(t, []string{"@*,!/Reports*"}, nil)
+
+	for _, reqPath := range []string{"/reports", "/Reports/r.json"} {
+		t.Run(reqPath, func(t *testing.T) {
+			assert.False(t, c.Resolve("", reqPath, false).Allowed)
 		})
 	}
 }

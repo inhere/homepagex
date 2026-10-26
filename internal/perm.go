@@ -108,9 +108,9 @@ func normalizeReqPath(p string) string {
 		return "/"
 	}
 	if !strings.HasPrefix(p, "/") {
-		return "/" + p
+		p = "/" + p
 	}
-	return p
+	return strings.ToLower(p)
 }
 
 // normalizePattern 把配置里的路径写法归一化成 (匹配前缀, 匹配方式)
@@ -120,7 +120,7 @@ func normalizeReqPath(p string) string {
 //	/a*          → 前缀匹配（兼容旧写法，会命中 /ab）
 //	/a           → 子树匹配（/a 与 /a/...）
 func normalizePattern(raw string) (string, ruleKind) {
-	p := strings.TrimSpace(raw)
+	p := strings.ToLower(strings.TrimSpace(raw))
 
 	switch p {
 	case "", "*", "/*", "/**":

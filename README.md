@@ -285,6 +285,7 @@ page_navs:
   `static/about.html` 对应 `/about.html`，`static/data/about.json` 对应 `/data/about.json`。
 - 目录不要求 `index.html`。原前端资源优先，`static_dir` 只补充缺失文件，不会覆盖骨架；
   `/api/page`、`/api/login`、`/api/logout`、`/icons-local/` 等已注册路由仍由原处理器处理。
+- `static_dir` 不要放置指向受控目录的软链接；静态文件服务会跟随软链接，可能绕过按请求路径配置的权限规则。
 - 可参考 `examples/static/`：`about.html` 使用 `fetch('./data/about.json')` 读取外部 JSON。
   文件每次请求时从磁盘读取，修改后刷新即可生效；修改 `static_dir` 配置需要重启服务。
 - `frontend_dir` 仍用于替换整套前端，添加自定义页面时使用 `static_dir` 即可。

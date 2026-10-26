@@ -160,3 +160,40 @@ func TestExternalStaticAuth(t *testing.T) {
 		}
 	})
 }
+
+func TestUppercaseAuthPatternProtectsStaticAndPagePaths(t *testing.T) {
+	root := t.TempDir()
+	staticDir := filepath.Join(root, "static")
+	if err := os.MkdirAll(filepath.Join(staticDir, "reports"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staticDir, "reports", "r.json"), []byte(`{"ok":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &Config{
+		StaticDir:   staticDir,
+		FrontendDir: filepath.Join(root, "missing-frontend"),
+		Auths:       []string{"@*,!/Reports*"},
+	}
+	if err := cfg.parseAuths(); err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServer(cfg)
+
+	t.Run("static file", func(t *testing.T) {
+		rec := doStaticGet(srv, "/reports/r.json")
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("page API", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/page/reports", nil)
+		rec := httptest.NewRecorder()
+		srv.BasicAuthMiddleware(srv.PageApiHandler)(rec, req)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+}
