@@ -46,18 +46,37 @@ func resolveFrontendFS(dir string) http.FileSystem {
 //
 // 返回打开的文件、归一化后的资源名、是否命中。
 func (s *Server) openFrontendFile(name string) (http.File, string, bool) {
+	f, resolved, _, ok := s.openFrontendFileWithSource(name)
+	return f, resolved, ok
+}
+
+// openFrontendFileWithSource 打开前端或外部静态文件，并返回是否来自 staticFS。
+//
+// staticFS 只补充 frontendFS 中不存在的文件。请求路径的大小写变体在外部
+// 目录中按归一化的小写路径再尝试一次，避免大小写变体绕过静态文件权限检查。
+func (s *Server) openFrontendFileWithSource(name string) (http.File, string, bool, bool) {
 	name = strings.TrimPrefix(path.Clean("/"+name), "/")
 	if name == "" || name == "." {
 		name = frontendIndex
 	}
 	// 骨架资源优先，外部目录只补充缺失的文件；无需复制或重新构建前端。
 	if f, resolved, ok := openStaticFile(s.frontendFS, name); ok {
-		return f, resolved, true
+		return f, resolved, false, true
 	}
 	if s.staticFS != nil {
-		return openStaticFile(s.staticFS, name)
+		if f, resolved, ok := openStaticFile(s.staticFS, name); ok {
+			return f, resolved, true, true
+		}
+		// Linux 等系统的文件系统区分大小写，但权限路径按 URL 归一化处理。
+		// 对原始路径未命中的请求再尝试小写路径，防止 /OPS/ 绕过 /ops 的认证墙。
+		canonical := strings.ToLower(name)
+		if canonical != name {
+			if f, resolved, ok := openStaticFile(s.staticFS, canonical); ok {
+				return f, resolved, true, true
+			}
+		}
 	}
-	return nil, name, false
+	return nil, name, false, false
 }
 
 func openStaticFile(source http.FileSystem, name string) (http.File, string, bool) {

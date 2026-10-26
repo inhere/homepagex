@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -355,11 +356,11 @@ func (s *Server) postPageBlock(w http.ResponseWriter, r *http.Request, path stri
 // 资源来源见 resolveFrontendFS：frontend_dir 目录优先，其次内嵌资源，
 // 所以单文件部署（只有二进制 + 配置 + 页面）也能正常返回前端。
 func (s *Server) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
-	f, name, ok := s.openFrontendFile(r.URL.Path)
+	f, name, external, ok := s.openFrontendFileWithSource(r.URL.Path)
 
 	// 文件不存在且请求路径没有扩展名（如 /tools）→ 交回前端路由，返回 index.html
 	if !ok && path.Ext(r.URL.Path) == "" {
-		f, name, ok = s.openFrontendFile(frontendIndex)
+		f, name, external, ok = s.openFrontendFileWithSource(frontendIndex)
 	}
 	if !ok {
 		// 逐请求的静态资源日志太吵，只在 debug 模式打印
@@ -368,6 +369,24 @@ func (s *Server) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
+
+	if external {
+		username := s.usernameFromRequest(r)
+		acc := s.resolveStaticAccess(username, normalizeStaticAuthPath(r.URL.Path))
+		if !acc.Allowed {
+			if username == "" && acceptsHTML(r) {
+				redirect := "/?login=1&redirect=" + url.QueryEscape(r.URL.RequestURI())
+				http.Redirect(w, r, redirect, http.StatusFound)
+				return
+			}
+			if username == "" {
+				s.sendError(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			s.sendError(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+	}
 
 	info, err := f.Stat()
 	if err != nil {
@@ -382,6 +401,46 @@ func (s *Server) StaticFileHandler(w http.ResponseWriter, r *http.Request) {
 	// ServeContent 见到已有 Content-Type 就会保留
 	w.Header().Set("Content-Type", getContentType(name))
 	http.ServeContent(w, r, name, info.ModTime(), f)
+}
+
+// resolveStaticAccess 保持直接构造 Config 的旧行为：未配置任何 auths/deny
+// 时外部静态文件公开。正常从配置文件加载时，默认 auths 为 @*，因此仍会
+// 统一经过 Config.Resolve。
+func (s *Server) resolveStaticAccess(username, reqPath string) Access {
+	if s.config == nil {
+		return Access{Allowed: true}
+	}
+	if len(s.config.Auths) == 0 && len(s.config.Deny) == 0 &&
+		len(s.config.parsedAuths) == 0 && len(s.config.guestRules) == 0 &&
+		len(s.config.guestDenyRules) == 0 && len(s.config.hardDenyRules) == 0 {
+		return Access{Allowed: true}
+	}
+	return s.config.Resolve(username, reqPath, false)
+}
+
+// normalizeStaticAuthPath 归一化静态文件鉴权使用的请求路径。
+// URL.Path 通常已经完成一次 URL 解码，但再次解码可覆盖 httptest 和反向
+// 代理传入的原始编码路径；path.Clean 消除 .. 与重复斜杠，大小写统一后
+// /OPS/、/ops/../ops/ 等变体不能绕过 /ops* 规则。
+func normalizeStaticAuthPath(raw string) string {
+	if decoded, err := url.PathUnescape(raw); err == nil {
+		raw = decoded
+	}
+	cleaned := path.Clean("/" + raw)
+	if cleaned == "." || cleaned == "" {
+		cleaned = "/"
+	}
+	return strings.ToLower(cleaned)
+}
+
+func acceptsHTML(r *http.Request) bool {
+	for _, media := range strings.Split(r.Header.Get("Accept"), ",") {
+		media = strings.TrimSpace(strings.SplitN(media, ";", 2)[0])
+		if media == "text/html" {
+			return true
+		}
+	}
+	return false
 }
 
 // getPageRawContent 获取页面原始 YAML 内容（内部方法）

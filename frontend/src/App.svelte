@@ -24,6 +24,7 @@
   let allTags;
   let showYamlEditor = false;
   let showLoginModal = false;
+  let loginRedirect = '';
   let iframeNav = null;
   // 单块编辑（表单 / 源码）：{ kind, mode, serviceIndex, index }
   let blockEditor = null;
@@ -296,6 +297,26 @@
     loadConfig();
   }
 
+  // 受保护的 static_dir HTML 页面会把浏览器带到这里，登录成功后回到原页面。
+  function openLoginFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('login') !== '1') {
+      return;
+    }
+
+    const redirect = params.get('redirect') || '';
+    try {
+      const target = new URL(redirect, window.location.origin);
+      loginRedirect = target.origin === window.location.origin &&
+        target.pathname.startsWith('/') && !target.pathname.startsWith('//')
+        ? target.pathname + target.search + target.hash
+        : '';
+    } catch {
+      loginRedirect = '';
+    }
+    showLoginModal = true;
+  }
+
   onMount(() => {
     // 跟随系统明暗
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -305,6 +326,7 @@
     };
     mq.addEventListener('change', onSchemeChange);
 
+    openLoginFromQuery();
     loadConfig();
 
     // 监听浏览器前进后退
@@ -344,6 +366,10 @@
       // 后端可能返回包含权限等扩展字段的用户信息，这里整体保存
       userInfo.set(info);
       showLoginModal = false;
+      if (loginRedirect) {
+        window.location.assign(loginRedirect);
+        return;
+      }
       // 登录成功后重新加载当前页面数据
       loadConfig(getRoute());
     }

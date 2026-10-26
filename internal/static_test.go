@@ -2,6 +2,7 @@ package internal
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,4 +63,100 @@ func TestExternalStaticDirectory(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExternalStaticAuth(t *testing.T) {
+	root := t.TempDir()
+	staticDir := filepath.Join(root, "static")
+	write := func(name, content string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(name, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	write(filepath.Join(staticDir, "ops", "sqlapi", "index.html"), "<html>ops</html>")
+	write(filepath.Join(staticDir, "ops", "index.html"), "<html>ops root</html>")
+	write(filepath.Join(staticDir, "ops", "edge-boards.json"), `{"ok":true}`)
+	write(filepath.Join(staticDir, "ops-x", "index.html"), "<html>ops-x</html>")
+	write(filepath.Join(staticDir, "public.json"), `{"public":true}`)
+
+	cfg := &Config{
+		StaticDir:   staticDir,
+		FrontendDir: filepath.Join(root, "missing-frontend"),
+		Auths:       []string{"@*,!/ops*", "admin:admin123@/ops*:ro", "blocked:blocked@/ops*:no"},
+	}
+	if err := cfg.parseAuths(); err != nil {
+		t.Fatal(err)
+	}
+	srv := NewServer(cfg)
+
+	request := func(target, accept string, username string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		if accept != "" {
+			req.Header.Set("Accept", accept)
+		}
+		if username != "" {
+			req.AddCookie(&http.Cookie{Name: sessionCookieName, Value: srv.createSession(username)})
+		}
+		rec := httptest.NewRecorder()
+		srv.StaticFileHandler(rec, req)
+		return rec
+	}
+
+	t.Run("anonymous public external file remains public", func(t *testing.T) {
+		rec := request("/public.json", "application/json", "")
+		if rec.Code != http.StatusOK || rec.Body.String() != `{"public":true}` {
+			t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("anonymous protected JSON gets 401", func(t *testing.T) {
+		rec := request("/ops/edge-boards.json", "application/json", "")
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("anonymous protected HTML redirects to login with return path", func(t *testing.T) {
+		rec := request("/ops/sqlapi/?tab=slow", "text/html", "")
+		location := rec.Header().Get("Location")
+		if rec.Code != http.StatusFound || !strings.HasPrefix(location, "/?login=1&redirect=") || !strings.Contains(location, "ops") {
+			t.Fatalf("status=%d location=%q body=%q", rec.Code, location, rec.Body.String())
+		}
+	})
+
+	t.Run("authorized user gets protected page", func(t *testing.T) {
+		rec := request("/ops/sqlapi/", "text/html", "admin")
+		if rec.Code != http.StatusOK || rec.Body.String() != "<html>ops</html>" {
+			t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("logged-in user without permission gets 403", func(t *testing.T) {
+		rec := request("/ops/sqlapi/", "text/html", "blocked")
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+		}
+	})
+
+	for _, target := range []string{"/ops/../ops/edge-boards.json", "//ops//edge-boards.json", "/ops%2Fedge-boards.json", "/OPS/", "/ops-x"} {
+		t.Run("path variant "+target, func(t *testing.T) {
+			rec := request(target, "application/json", "")
+			if rec.Code != http.StatusUnauthorized {
+				t.Fatalf("status=%d body=%q", rec.Code, rec.Body.String())
+			}
+		})
+	}
+
+	t.Run("embedded frontend resource remains public", func(t *testing.T) {
+		rec := request("/bundle.js", "application/javascript", "")
+		if rec.Code != http.StatusOK || rec.Body.Len() == 0 {
+			t.Fatalf("status=%d body length=%d", rec.Code, rec.Body.Len())
+		}
+	})
 }
