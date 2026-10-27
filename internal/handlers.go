@@ -135,10 +135,8 @@ func writeIconBytes(w http.ResponseWriter, path string, data []byte) {
 // POST /api/page/xxx?op=block    - 修改单个块（update / insert / delete）
 func (s *Server) PageApiHandler(w http.ResponseWriter, r *http.Request) {
 	// 从 URL 路径获取路由
-	path := strings.TrimPrefix(r.URL.Path, "/api/page")
-	if path == "" {
-		path = "/"
-	}
+	// 去掉末尾斜杠：/ops/ 与 /ops 是同一页面（浏览器地址带斜杠时前端曾请求 /api/page/ops/ 而空白）
+	path := "/" + strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/page"), "/")
 
 	op := r.URL.Query().Get("op")
 

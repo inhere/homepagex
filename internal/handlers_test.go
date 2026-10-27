@@ -168,3 +168,13 @@ func TestStaticFileHandler(t *testing.T) {
 		assert.Eq(t, http.StatusNotFound, rec.Code)
 	})
 }
+
+// /api/page/home/ 与 /api/page/home 是同一页面：浏览器地址带结尾斜杠时不能取不到页面（/ops/ 空白）
+func TestHandlePageGetTrailingSlash(t *testing.T) {
+	srv, _, _ := newTestServerFixture(t, []string{"@*:ro"})
+	for _, p := range []string{"/api/page/home", "/api/page/home/", "/api/page/home//"} {
+		rec := httptest.NewRecorder()
+		srv.PageApiHandler(rec, httptest.NewRequest(http.MethodGet, p, nil))
+		assert.Eq(t, http.StatusOK, rec.Code, p)
+	}
+}

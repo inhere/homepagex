@@ -178,8 +178,9 @@
 
   // 获取当前路由
   function getRoute() {
-    const path = window.location.pathname;
-    return path === '/' ? '/' : path;
+    // /ops/ 与 /ops 视为同一页面，去掉末尾斜杠
+    const path = window.location.pathname.replace(/\/+$/, '');
+    return path === '' ? '/' : path;
   }
 
   // 检查并处理 URL 中的 refresh 参数
