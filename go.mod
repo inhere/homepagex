@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/goccy/go-yaml v1.19.2
-	github.com/gookit/goutil v0.8.6
+	github.com/gookit/goutil v0.9.0
 )
 
 require (
