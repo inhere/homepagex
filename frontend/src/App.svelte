@@ -422,6 +422,11 @@
     loadConfig();
   }
 
+  // 加载失败（如网络中断）后手动重试：成功后 error 会被新一轮 loadConfig 清掉
+  function retryLoad() {
+    loadConfig(getRoute());
+  }
+
   // 受保护的 static_dir HTML 页面会把浏览器带到这里，登录成功后回到原页面。
   function openLoginFromQuery() {
     const params = new URLSearchParams(window.location.search);
@@ -575,35 +580,46 @@
         {/if}
 
         <div class="services-wrapper" aria-busy={loading}>
-          {#if error}
-            <!-- 首次加载之后的错误就地在内容区展示，不再整页替换（否则又是「闪一下」） -->
+          {#if error && filteredServices.length === 0}
+            <!-- 一根数据都还没有（首次进入或换了页面后加载失败）：整块展示错误 -->
             <div class="no-results inline-error">
               <i class="fas fa-exclamation-circle"></i>
               <p>{error}</p>
-            </div>
-          {:else if filteredServices.length === 0}
-            <div class="no-results">
-              <i class="fas fa-search"></i>
-              <p>没有找到匹配的服务</p>
+              <button class="retry-btn" on:click={retryLoad}>重试</button>
             </div>
           {:else}
-            <div class="services-container" bind:this={masonryEl}>
-              {#each masonryColumns as column, columnIndex (columnIndex)}
-                <div class="masonry-column">
-                  {#each column as service (service._serviceIndex)}
-                    <ServiceGroup
-                      {service}
-                      style={$viewStyle}
-                      canEdit={!!$pageConfig.can_write}
-                      onEditItem={(itemIndex) => openItemEditor(service._serviceIndex, itemIndex)}
-                      onDeleteItem={(itemIndex) => deleteItem(service._serviceIndex, itemIndex)}
-                      onAddItem={() => openNewItem(service._serviceIndex)}
-                      onEditService={() => openServiceEditor(service._serviceIndex)}
-                    />
-                  {/each}
-                </div>
-              {/each}
-            </div>
+            {#if error}
+              <!-- 已经有数据时刷新失败（典型：网络中断）不能把内容换掉，只提示并可重试 -->
+              <div class="inline-error banner">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>{error}</span>
+                <button class="retry-btn" on:click={retryLoad}>重试</button>
+              </div>
+            {/if}
+            {#if filteredServices.length === 0}
+              <div class="no-results">
+                <i class="fas fa-search"></i>
+                <p>没有找到匹配的服务</p>
+              </div>
+            {:else}
+              <div class="services-container" bind:this={masonryEl}>
+                {#each masonryColumns as column, columnIndex (columnIndex)}
+                  <div class="masonry-column">
+                    {#each column as service (service._serviceIndex)}
+                      <ServiceGroup
+                        {service}
+                        style={$viewStyle}
+                        canEdit={!!$pageConfig.can_write}
+                        onEditItem={(itemIndex) => openItemEditor(service._serviceIndex, itemIndex)}
+                        onDeleteItem={(itemIndex) => deleteItem(service._serviceIndex, itemIndex)}
+                        onAddItem={() => openNewItem(service._serviceIndex)}
+                        onEditService={() => openServiceEditor(service._serviceIndex)}
+                      />
+                    {/each}
+                  </div>
+                {/each}
+              </div>
+            {/if}
           {/if}
         </div>
       </div>
@@ -775,6 +791,42 @@
 
   .no-results.inline-error {
     color: var(--danger-ink, #ff9aa2);
+  }
+
+  /* 已有内容时加载失败的提示条：不挤占内容，只占一行并可重试 */
+  .inline-error.banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    background: var(--surface, rgba(255, 255, 255, 0.05));
+    color: var(--danger-ink, #ff9aa2);
+    font-size: 0.9rem;
+  }
+
+  .inline-error.banner span {
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+  }
+
+  .retry-btn {
+    flex: 0 0 auto;
+    padding: 4px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.2));
+    background: transparent;
+    color: var(--ink, inherit);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .retry-btn:hover {
+    border-color: var(--accent, #6ea8fe);
+    color: var(--accent, #6ea8fe);
   }
 
   /* 卡片视图：瀑布流（masonry）。每列独立堆叠，卡片只占自身内容高度；
