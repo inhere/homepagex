@@ -1,5 +1,5 @@
   <script>
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import Header from './components/Header.svelte';
   import Navbar from './components/Navbar.svelte';
   import Toolbar from './components/Toolbar.svelte';
@@ -28,6 +28,129 @@
   let iframeNav = null;
   // 单块编辑（表单 / 源码）：{ kind, mode, serviceIndex, index }
   let blockEditor = null;
+
+  // ---- 瀑布流布局（cards 视图）----
+  // 之前是 CSS grid：同一行的卡片被拉成该行最高卡片的行高，条目少的分组下面会留出
+  // 一大片空白。现在按列独立堆叠：先铺一版，再按实测高度把每张卡片放进当前最矮的列。
+  // 卡片高度只取决于列宽（与落在哪一列无关），所以「测量 → 重排」一轮即可收敛。
+  const MASONRY_MIN_WIDTH = 280; // 单列最小宽度，沿用改造前 grid 的 280px
+  const MASONRY_GAP = 24;
+  let masonryEl = null;
+  let masonryColumns = []; // 每列一个 service 数组
+  let masonrySeq = 0;
+  // 最近一次测量对应的数据与列宽：数据或宽度变了就不能复用旧高度
+  let masonryMeasured = { source: null, width: 0, heights: new Map() };
+  let masonryObserver = null;
+
+  function masonryMaxColumns() {
+    const count = parseInt($pageConfig && $pageConfig.columns, 10);
+    return Number.isFinite(count) && count > 0 ? count : 3;
+  }
+
+  function masonryColumnCount(width) {
+    // 与改造前的媒体查询保持一致：窄屏固定单列
+    if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+      return 1;
+    }
+    const fit = Math.floor((width + MASONRY_GAP) / (MASONRY_MIN_WIDTH + MASONRY_GAP));
+    return Math.max(1, Math.min(masonryMaxColumns(), fit));
+  }
+
+  // 读取当前 DOM 里每张卡片的高度，按 masonryColumns 的渲染顺序回填到 service 上
+  function measureCardHeights() {
+    const heights = new Map();
+    if (!masonryEl) return heights;
+    const cards = masonryEl.querySelectorAll('.masonry-column > .service-group');
+    let index = 0;
+    for (const column of masonryColumns) {
+      for (const service of column) {
+        const el = cards[index++];
+        if (el) heights.set(service._serviceIndex, el.offsetHeight);
+      }
+    }
+    return heights;
+  }
+
+  function layoutMasonry() {
+    const services = filteredServices || [];
+    if (services.length === 0) {
+      masonryColumns = [];
+      return;
+    }
+    // 非 cards 视图（list 等）不分列，交给容器原有布局
+    if ($viewStyle !== 'cards') {
+      masonryColumns = [services];
+      return;
+    }
+    if (!masonryEl) {
+      masonryColumns = [services];
+      return;
+    }
+
+    const width = masonryEl.clientWidth;
+    // auto-fit 会折叠空轨道：分组少于列数时只铺实际需要的列（否则单个分组会挤在一窄列里）
+    const count = Math.min(masonryColumnCount(width), services.length);
+    const heights = masonryMeasured.source === services && masonryMeasured.width === width
+      ? masonryMeasured.heights
+      : null;
+    const columns = Array.from({ length: count }, () => []);
+    const totals = new Array(count).fill(0);
+
+    services.forEach((service, index) => {
+      const height = heights ? heights.get(service._serviceIndex) : undefined;
+      // 还没有测量值（首次渲染/数据或宽度变化）时先按顺序轮转铺开
+      let target = index % count;
+      if (height != null) {
+        target = 0;
+        for (let col = 1; col < count; col++) {
+          if (totals[col] < totals[target]) target = col;
+        }
+      }
+      columns[target].push(service);
+      totals[target] += (height || 0) + MASONRY_GAP;
+    });
+
+    masonryColumns = columns;
+  }
+
+  async function scheduleMasonry() {
+    const seq = ++masonrySeq;
+    layoutMasonry(); // 先同步铺一版，避免出现空帧
+    await tick();
+    if (seq !== masonrySeq) return;
+
+    const services = filteredServices || [];
+    if ($viewStyle !== 'cards' || !masonryEl || services.length === 0) return;
+    masonryMeasured = {
+      source: services,
+      width: masonryEl.clientWidth,
+      heights: measureCardHeights(),
+    };
+    layoutMasonry(); // 用实测高度重排
+  }
+
+  // 数据、视图样式或列数配置变化时重新布局
+  $: if (filteredServices && $viewStyle && $pageConfig) scheduleMasonry();
+
+  function watchMasonryWidth(el) {
+    if (masonryObserver) {
+      masonryObserver.disconnect();
+      masonryObserver = null;
+    }
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    let lastWidth = el.clientWidth;
+    masonryObserver = new ResizeObserver((entries) => {
+      const width = Math.round(entries[0].contentRect.width);
+      // 只对宽度变化重排，忽略高度变化，否则重排会再触发自己
+      if (Math.abs(width - lastWidth) < 8) return;
+      lastWidth = width;
+      scheduleMasonry();
+    });
+    masonryObserver.observe(el);
+  }
+
+  $: if (masonryEl) watchMasonryWidth(masonryEl);
 
   function openItemEditor(serviceIndex, itemIndex) {
     blockEditor = { kind: 'item', mode: 'edit', serviceIndex, index: itemIndex };
@@ -336,6 +459,10 @@
     return () => {
       mq.removeEventListener('change', onSchemeChange);
       window.removeEventListener('popstate', handlePopstate);
+      if (masonryObserver) {
+        masonryObserver.disconnect();
+        masonryObserver = null;
+      }
     };
   });
 
@@ -459,17 +586,21 @@
               <p>没有找到匹配的服务</p>
             </div>
           {:else}
-            <div class="services-container" style="--columns: {$pageConfig.columns || '3'}">
-              {#each filteredServices as service (service._serviceIndex)}
-                <ServiceGroup
-                  {service}
-                  style={$viewStyle}
-                  canEdit={!!$pageConfig.can_write}
-                  onEditItem={(itemIndex) => openItemEditor(service._serviceIndex, itemIndex)}
-                  onDeleteItem={(itemIndex) => deleteItem(service._serviceIndex, itemIndex)}
-                  onAddItem={() => openNewItem(service._serviceIndex)}
-                  onEditService={() => openServiceEditor(service._serviceIndex)}
-                />
+            <div class="services-container" bind:this={masonryEl}>
+              {#each masonryColumns as column, columnIndex (columnIndex)}
+                <div class="masonry-column">
+                  {#each column as service (service._serviceIndex)}
+                    <ServiceGroup
+                      {service}
+                      style={$viewStyle}
+                      canEdit={!!$pageConfig.can_write}
+                      onEditItem={(itemIndex) => openItemEditor(service._serviceIndex, itemIndex)}
+                      onDeleteItem={(itemIndex) => deleteItem(service._serviceIndex, itemIndex)}
+                      onAddItem={() => openNewItem(service._serviceIndex)}
+                      onEditService={() => openServiceEditor(service._serviceIndex)}
+                    />
+                  {/each}
+                </div>
               {/each}
             </div>
           {/if}
@@ -645,21 +776,26 @@
     color: var(--danger-ink, #ff9aa2);
   }
 
-  .services-container {
-    display: grid;
-    /* 用 --columns 作为「最大列数」参与计算：每列最小宽度 =
-       max(280px, 扣除间距后均分给 columns 列的宽度)。
-       容器够宽时正好 columns 列；变窄后回落到 280px 起自动换列。
-       之前是固定 repeat(columns, ...) + 媒体查询硬覆盖成 2 列，
-       导致 columns: "4" 在 1366 宽度的笔记本上只显示 2 列。 */
-    grid-template-columns: repeat(
-      auto-fit,
-      minmax(
-        max(280px, calc((100% - (var(--columns, 3) - 1) * 24px) / var(--columns, 3))),
-        1fr
-      )
-    );
+  /* 卡片视图：瀑布流（masonry）。每列独立堆叠，卡片只占自身内容高度；
+     改造前用 grid，同一行的卡片被行高撑开，条目少的分组下面留出大片空白。
+     列数由 JS 依据容器宽度与 columns 配置计算（见 layoutMasonry）。 */
+  .app.cards .services-container {
+    display: flex;
+    align-items: flex-start;
     gap: 24px;
+  }
+
+  .masonry-column {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  /* list 等非 cards 视图不分列：contents 让卡片回到容器原有布局 */
+  .app:not(.cards) .masonry-column {
+    display: contents;
   }
 
   .services-container > :global(*) {
@@ -677,11 +813,6 @@
     }
   }
 
-  @media (max-width: 768px) {
-    .services-container {
-      grid-template-columns: 1fr;
-    }
-  }
 
   /* List view styles */
   .list .services-container {

@@ -244,7 +244,7 @@ title: "Dashboard"
 subtitle: "Welcome"
 theme: "ocean-depths"  # 6 themes available
 style: "cards"         # cards or list
-columns: "3"
+columns: "3"           # cards 视图的最大列数；实际列数按容器宽度自动减少
 
 connectivity:
   check_interval: 30000
