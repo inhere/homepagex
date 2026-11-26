@@ -238,7 +238,8 @@
   function matchesAllKeywords(text, keywords) {
     if (!keywords.length) return true;
     const lowerText = text.toLowerCase();
-    return keywords.every(keyword => lowerText.includes(keyword));
+    // 关键词同样要转小写：否则搜索框输入大写字母（如 Plex）永远匹配不到
+    return keywords.every(keyword => lowerText.includes(keyword.toLowerCase()));
   }
 
   function collectTags(services) {
