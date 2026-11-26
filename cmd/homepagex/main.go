@@ -8,10 +8,11 @@ import (
 	"github.com/inhere/homepagex/internal"
 )
 
-// 构建信息。Version 是源码内置的兜底版本（本地 `go build` 时用），
-// 发布构建由 Makefile / CI 通过 -ldflags -X main.Version=... 注入。
+// 构建信息。Version 是源码内置的兜底版本（直接 `go build` 时用），只用来区分
+// 「本地随手编的」和发布版：发布构建由 Makefile / CI 通过 -ldflags -X main.Version=...
+// 注入真实版本号，`make build` 时取 `git describe --tags`。
 var (
-	Version   = "0.3.0"
+	Version   = "dev"
 	GitCommit = "unknown"
 	BuildDate = "unknown"
 )
